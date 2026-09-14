@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import AuthPage from "./pages/AuthPage";
-import Home from "./pages/Home";
+import Dcf from "./pages/Dcf";
 
 function PrivateRoute({ children }) {
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
@@ -21,7 +21,7 @@ export default function App() {
           path="/"
           element={
             <PrivateRoute>
-              <Home />
+              <Dcf />
             </PrivateRoute>
           }
         />

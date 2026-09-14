@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { updateAsLoggedOut } from "../slices/UserSlice";
 import logo from "../assets/finvestimaTransparentLogo.png";
 
-export default function Home() {
+export default function TopBar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -14,31 +14,42 @@ export default function Home() {
   }
 
   return (
-    <div style={styles.page}>
+    <div style={styles.bar}>
+      <div style={styles.logoWrap}>
+        <img src={logo} alt="Finvestima" style={styles.logo} />
+      </div>
       <button style={styles.logout} onClick={handleLogout}>
         Log out
       </button>
-      <img src={logo} alt="Finvestima" style={styles.logo} />
     </div>
   );
 }
 
 const styles = {
-  page: {
+  bar: {
+    flexShrink: 0,
+    width: "100%",
+    boxSizing: "border-box",
     display: "flex",
-    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 24px",
+    background: "rgba(46, 196, 182, 0.3)",
+    borderBottom: "1px solid #eee",
+  },
+  logoWrap: {
+    background: "#fff",
+    borderRadius: "1rem",
+    width: "12rem",
+    height: "48px",
+    display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: "100vh",
-    position: "relative",
   },
   logo: {
-    maxWidth: "320px",
+    height: "44px",
   },
   logout: {
-    position: "absolute",
-    top: "20px",
-    right: "20px",
     padding: "8px 16px",
     borderRadius: "8px",
     border: "1px solid #ddd",
