@@ -1,11 +1,36 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+:root {
+  --paper: #fbfbf9;
+  --ink: #13211f;
+  --ink-2: #41524f;
+  --ink-3: #7b8a87;
+  --rule: #e2e5e1;
+  --rule-2: #edefeb;
+  --band: #f4f5f1;
+  --teal: #0e8c7c;
+  --teal-dk: #0a6b5f;
+  --teal-wash: #e7f3f0;
+  --red: #b3402f;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #f5f6f8;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  background: #e9ebe6;
+  color: var(--ink);
+}
+
+a {
+  color: var(--teal-dk);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--teal);
 }
 
 .App {
@@ -47,4 +72,59 @@ body {
     opacity: 0.6;
     transform: scale(1.05);
   }
+}
+
+/* Finvestima data-table language: caption + thead + tbody rows,
+   used by the DCF and Extract pages. */
+.fin-table th,
+.fin-table td {
+  padding: 7px 14px;
+  text-align: right;
+  white-space: nowrap;
+}
+.fin-table th:first-child,
+.fin-table td:first-child {
+  text-align: left;
+  padding-left: 22px;
+  width: 38%;
+}
+.fin-table th:last-child,
+.fin-table td:last-child {
+  padding-right: 22px;
+}
+.fin-table tbody td {
+  border-bottom: 1px solid var(--rule-2);
+}
+.fin-table tbody td:not(:first-child) {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+.fin-table tr.grp td {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--band);
+  padding-top: 9px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--rule);
+}
+.fin-table tr.sum td {
+  font-weight: 600;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--rule);
+}
+.fin-table tr.key td {
+  font-weight: 600;
+  background: var(--teal-wash);
+  border-bottom: 1px solid var(--rule);
+}
+.fin-table tbody tr:hover td {
+  background: #f6f7f4;
+}
+.fin-table tbody tr.key:hover td {
+  background: #deede9;
 }

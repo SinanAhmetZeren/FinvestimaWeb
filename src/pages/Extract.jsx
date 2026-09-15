@@ -7,6 +7,13 @@ import TopBar from "../components/TopBar";
 
 const POLL_INTERVAL_MS = 2000;
 
+const POLL_FLASH_COLORS = {
+  Pending: "var(--ink-3)",
+  Processing: "var(--teal)",
+  Completed: "var(--teal-dk)",
+  Failed: "var(--red)",
+};
+
 export default function Extract() {
   const [startExtractionJob] = useStartExtractionJobMutation();
   const [fetchJob] = useLazyGetExtractionJobQuery();
@@ -20,13 +27,6 @@ export default function Extract() {
   const fileInputRef = useRef(null);
   const pollTimeoutRef = useRef(null);
   const flashCounterRef = useRef(0);
-
-  const POLL_FLASH_COLORS = {
-    Pending: "#999",
-    Processing: "#2EC4B6",
-    Completed: "#1a9e6a",
-    Failed: "#c0392b",
-  };
 
   function flashPollStatus(status) {
     flashCounterRef.current += 1;
@@ -96,7 +96,7 @@ export default function Extract() {
     }
   }
 
-  function handleClear() {
+  function handleRemoveFile() {
     if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
     setFile(null);
     setResult(null);
@@ -127,9 +127,21 @@ export default function Extract() {
 
   const filteredStatements = getFilteredStatements();
 
+  const totalLineItems = result
+    ? result.statements.reduce((sum, s) => sum + s.rows.filter((r) => r.rowType !== "title").length, 0)
+    : 0;
+  const totalPeriods = result && result.statements.length > 0 ? result.statements[0].columns.length : 0;
+
   function formatValue(value) {
     if (value == null) return "—";
     return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  function lastSumIndex(rows) {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].rowType === "sum") return i;
+    }
+    return -1;
   }
 
   return (
@@ -138,13 +150,13 @@ export default function Extract() {
         <div style={styles.pageWrap}>
           <TopBar />
           <div style={styles.page}>
-            <div style={styles.card}>
-              <h1 style={styles.h1}>Financial Document Extractor</h1>
-              <p style={styles.subtitle}>
-                Upload a balance sheet, income statement, or cash flow statement — Gemini will extract it as a structured table.
-              </p>
+            <div style={styles.app}>
+              <div style={styles.hd}>
+                <h3 style={styles.hdTitle}>Financial Document Extractor</h3>
+                <p style={styles.hdSubtitle}>Upload a balance sheet, income statement, or cash flow statement.</p>
+              </div>
 
-              <form onSubmit={handleExtract} style={styles.form}>
+              <form onSubmit={handleExtract} style={styles.bar}>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -153,62 +165,76 @@ export default function Extract() {
                   style={styles.hiddenInput}
                   id="doc-upload"
                 />
-                <label htmlFor="doc-upload" style={styles.uploadButton}>
-                  {file ? file.name : "Choose Document"}
-                </label>
-                <button style={styles.button} type="submit" disabled={isProcessing || !file}>
-                  <span style={{ opacity: isProcessing ? 0 : 1 }}>Extract</span>
+                {file ? (
+                  <span style={styles.fileChip}>
+                    <FileIcon />
+                    <span style={styles.fileChipName}>{file.name}</span>
+                    <button type="button" style={styles.fileChipX} onClick={handleRemoveFile} aria-label="Remove">
+                      <XIcon />
+                    </button>
+                  </span>
+                ) : (
+                  <label htmlFor="doc-upload" style={styles.fileChip}>
+                    <FileIcon />
+                    <span style={styles.fileChipName}>Choose document</span>
+                  </label>
+                )}
+
+                <button style={styles.btn} type="submit" disabled={isProcessing || !file}>
+                  <span style={{ opacity: isProcessing ? 0 : 1, display: "inline-flex", alignItems: "center", gap: "7px" }}>
+                    <UploadIcon />
+                    Extract
+                  </span>
                   {isProcessing && <span style={styles.spinner} />}
                 </button>
-                <button style={styles.clearButton} type="button" onClick={handleClear} disabled={!file && !result}>
-                  Clear
-                </button>
+
                 {isSending && (
-                  <span style={{ ...styles.pollIndicator, background: "#e67e22", animation: "pill-pulse 1s ease infinite" }}>
+                  <span style={{ ...styles.pill, background: "#e67e22", animation: "pill-pulse 1s ease infinite" }}>
                     Starting
                   </span>
                 )}
                 {!isSending && pollFlash && (
                   <span
                     key={pollFlash.key}
-                    style={{
-                      ...styles.pollIndicator,
-                      background: POLL_FLASH_COLORS[pollFlash.status] || "#666",
-                    }}
+                    style={{ ...styles.pill, background: POLL_FLASH_COLORS[pollFlash.status] || "var(--ink-3)" }}
                   >
                     {pollFlash.status}
                   </span>
                 )}
+                {!isSending && !pollFlash && result && (
+                  <span style={styles.stat}>
+                    <CheckIcon />
+                    Extracted {totalPeriods} periods · {totalLineItems} line items
+                  </span>
+                )}
+
+                <span style={styles.sp} />
+
+                {result && (
+                  <>
+                    <span style={styles.srch}>
+                      <SearchIcon />
+                      <input
+                        type="text"
+                        placeholder="Filter line items"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={styles.srchInput}
+                      />
+                    </span>
+                    <span style={styles.seg}>
+                      <button type="button" style={styles.segBtn(viewMode === "table")} onClick={() => setViewMode("table")}>
+                        Table
+                      </button>
+                      <button type="button" style={styles.segBtn(viewMode === "json")} onClick={() => setViewMode("json")}>
+                        JSON
+                      </button>
+                    </span>
+                  </>
+                )}
               </form>
 
-              {result && (
-                <div style={styles.toolbar}>
-                  <input
-                    type="text"
-                    placeholder="Search line items..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={styles.searchInput}
-                  />
-                  <div style={styles.toggleGroup}>
-                    <button
-                      type="button"
-                      style={styles.toggleButton(viewMode === "table")}
-                      onClick={() => setViewMode("table")}
-                    >
-                      Table
-                    </button>
-                    <button
-                      type="button"
-                      style={styles.toggleButton(viewMode === "json")}
-                      onClick={() => setViewMode("json")}
-                    >
-                      JSON
-                    </button>
-                  </div>
-                </div>
-              )}
-
+              <div style={styles.content}>
               {!result && <div style={styles.placeholder}>No data yet — upload a document and click Extract.</div>}
 
               {result && viewMode === "json" && (
@@ -219,16 +245,19 @@ export default function Extract() {
 
               {result && viewMode === "table" && (
                 <div style={styles.statementsWrap}>
-                  {filteredStatements.map((statement, si) => (
-                    <div key={si} style={styles.statementBlock}>
-                      <h2 style={styles.statementTitle}>{statement.statementType}</h2>
-                      <div style={styles.tableScroll}>
-                        <table style={styles.table}>
+                  {filteredStatements.map((statement, si) => {
+                    const keyIdx = lastSumIndex(statement.rows);
+                    return (
+                      <div key={si} style={styles.tw}>
+                        <table className="fin-table" style={styles.table}>
+                          <caption style={styles.caption}>{statement.statementType}</caption>
                           <thead>
                             <tr>
-                              <th style={styles.thLabel}></th>
+                              <th style={styles.th}></th>
                               {statement.columns.map((col, ci) => (
-                                <th key={ci} style={styles.th}>{col}</th>
+                                <th key={ci} style={styles.th}>
+                                  {col}
+                                </th>
                               ))}
                             </tr>
                           </thead>
@@ -236,48 +265,86 @@ export default function Extract() {
                             {statement.rows.map((row, ri) => {
                               if (row.rowType === "title") {
                                 return (
-                                  <tr key={ri}>
-                                    <td colSpan={statement.columns.length + 1} style={styles.titleRow}>
-                                      {row.label}
-                                    </td>
+                                  <tr className="grp" key={ri}>
+                                    <td colSpan={statement.columns.length + 1}>{row.label}</td>
                                   </tr>
                                 );
                               }
                               const isSum = row.rowType === "sum";
+                              const isKey = ri === keyIdx;
                               return (
-                                <tr key={ri}>
-                                  <td style={isSum ? styles.tdLabelSum : styles.tdLabel}>{row.label}</td>
+                                <tr className={isKey ? "key" : isSum ? "sum" : ""} key={ri}>
+                                  <td>{row.label}</td>
                                   {row.values.map((v, vi) => (
-                                    <td key={vi} style={isSum ? styles.tdSum : styles.td}>
-                                      {formatValue(v)}
-                                    </td>
+                                    <td key={vi}>{formatValue(v)}</td>
                                   ))}
                                 </tr>
                               );
                             })}
                           </tbody>
                         </table>
-                      </div>
 
-                      {statement.footnotes && statement.footnotes.length > 0 && (
-                        <div style={styles.footnotes}>
-                          {statement.footnotes.map((fn, fi) => (
-                            <div key={fi} style={styles.footnoteItem}>
-                              <div style={styles.footnoteNote}>{fn.note}</div>
-                              <div style={styles.footnoteComment}>{fn.comment}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {statement.footnotes && statement.footnotes.length > 0 && (
+                          <div style={styles.footnotes}>
+                            {statement.footnotes.map((fn, fi) => (
+                              <div key={fi} style={styles.footnoteItem}>
+                                <div style={styles.footnoteNote}>{fn.note}</div>
+                                <div style={styles.footnoteComment}>{fn.comment}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
       </header>
     </div>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" style={{ width: 14, height: 14, color: "var(--ink-3)", flexShrink: 0 }}>
+      <path d="M7 3h7l4 4v14H7z" />
+      <path d="M14 3v4h4" />
+    </svg>
+  );
+}
+function XIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ width: 12, height: 12 }}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+function UploadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+      <path d="M12 3v11" />
+      <path d="M8 10l4 4 4-4" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" style={{ width: 13, height: 13, color: "var(--teal)" }}>
+      <path d="M4 13l5 5L20 6" />
+    </svg>
+  );
+}
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ width: 14, height: 14, color: "var(--ink-3)", flexShrink: 0 }}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4 4" />
+    </svg>
   );
 }
 
@@ -292,63 +359,98 @@ const styles = {
   page: {
     flex: 1,
     minHeight: 0,
-    overflowY: "auto",
-    padding: "24px 20px 40px",
+    overflow: "hidden",
+    padding: "24px 22px 40px",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
   },
-  card: {
-    background: "#fff",
-    padding: "32px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    width: "100%",
-    maxWidth: "980px",
-    textAlign: "left",
-  },
-  h1: {
-    fontSize: "22px",
-    margin: "0 0 8px",
-    color: "#2C4A87",
-    textAlign: "left",
-  },
-  subtitle: {
-    fontSize: "13px",
-    color: "#666",
-    marginBottom: "20px",
-  },
-  form: {
+  app: {
     display: "flex",
-    gap: "12px",
+    flexDirection: "column",
+    flex: 1,
+    minHeight: 0,
+    background: "var(--paper)",
+    border: "1px solid var(--rule)",
+    borderRadius: "3px",
+    overflow: "hidden",
+    width: "100%",
+    maxWidth: "1100px",
+    textAlign: "left",
+  },
+  content: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+  },
+  hd: {
+    flexShrink: 0,
+    padding: "20px 22px 0",
+  },
+  hdTitle: {
+    fontSize: "21px",
+    fontWeight: 600,
+    letterSpacing: "-0.02em",
+    margin: 0,
+    color: "var(--ink)",
+  },
+  hdSubtitle: {
+    fontSize: "13.5px",
+    color: "var(--ink-2)",
+    marginTop: "4px",
+  },
+  bar: {
+    flexShrink: 0,
+    display: "flex",
     alignItems: "center",
-    marginBottom: "20px",
+    gap: "10px",
+    padding: "16px 22px",
     flexWrap: "wrap",
   },
   hiddenInput: {
     display: "none",
   },
-  uploadButton: {
-    padding: "10px 18px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
+  fileChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "9px",
+    border: "1px solid var(--rule)",
     background: "#fff",
-    color: "#2C4A87",
-    fontSize: "14px",
+    borderRadius: "3px",
+    padding: "8px 12px",
+    fontSize: "13px",
+    fontWeight: 500,
+    maxWidth: "260px",
     cursor: "pointer",
-    whiteSpace: "nowrap",
+    color: "var(--ink)",
+  },
+  fileChipName: {
     overflow: "hidden",
     textOverflow: "ellipsis",
-    maxWidth: "180px",
+    whiteSpace: "nowrap",
   },
-  button: {
-    position: "relative",
-    padding: "10px 18px",
-    borderRadius: "8px",
+  fileChipX: {
     border: "none",
-    background: "#2EC4B6",
+    background: "none",
+    cursor: "pointer",
+    color: "var(--ink-3)",
+    padding: 0,
+    display: "flex",
+    fontFamily: "inherit",
+  },
+  btn: {
+    position: "relative",
+    fontFamily: "inherit",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "7px",
+    border: "1px solid var(--teal)",
+    background: "var(--teal)",
     color: "#fff",
-    fontSize: "14px",
+    fontSize: "13px",
+    fontWeight: 600,
+    padding: "9px 16px",
+    borderRadius: "3px",
     cursor: "pointer",
   },
   spinner: {
@@ -364,146 +466,117 @@ const styles = {
     borderRadius: "50%",
     animation: "dcf-spin 0.7s linear infinite",
   },
-  clearButton: {
-    padding: "10px 18px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-    background: "#fff",
-    color: "#c0392b",
-    fontSize: "14px",
-    cursor: "pointer",
-  },
-  pollIndicator: {
-    padding: "8px 16px",
+  pill: {
+    padding: "7px 14px",
     borderRadius: "999px",
     color: "#fff",
-    fontSize: "13px",
+    fontSize: "12.5px",
     fontWeight: 700,
     animation: "poll-flash 2s ease forwards",
   },
-  toolbar: {
-    display: "flex",
-    gap: "12px",
+  stat: {
+    display: "inline-flex",
     alignItems: "center",
-    marginBottom: "20px",
-    flexWrap: "wrap",
+    gap: "7px",
+    fontSize: "12.5px",
+    fontWeight: 500,
+    color: "var(--ink-2)",
   },
-  searchInput: {
+  sp: {
     flex: 1,
-    minWidth: "200px",
-    boxSizing: "border-box",
-    padding: "10px 14px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-    fontSize: "14px",
-    textAlign: "left",
   },
-  toggleGroup: {
+  srch: {
     display: "flex",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
+    alignItems: "center",
+    gap: "8px",
+    border: "1px solid var(--rule)",
+    background: "#fff",
+    borderRadius: "3px",
+    padding: "0 11px",
+    height: "34px",
+    width: "210px",
+  },
+  srchInput: {
+    border: "none",
+    outline: "none",
+    background: "none",
+    fontFamily: "inherit",
+    fontSize: "13px",
+    width: "100%",
+    color: "var(--ink)",
+  },
+  seg: {
+    display: "flex",
+    border: "1px solid var(--rule)",
+    borderRadius: "3px",
     overflow: "hidden",
   },
-  toggleButton: (active) => ({
-    padding: "9px 16px",
+  segBtn: (active) => ({
+    fontFamily: "inherit",
     border: "none",
-    background: active ? "#2C4A87" : "#fff",
-    color: active ? "#fff" : "#2C4A87",
-    fontSize: "13px",
-    fontWeight: 600,
+    background: active ? "var(--band)" : "#fff",
     cursor: "pointer",
+    fontSize: "12.5px",
+    fontWeight: active ? 600 : 500,
+    color: active ? "var(--ink)" : "var(--ink-2)",
+    padding: "0 13px",
+    height: "34px",
   }),
+  placeholder: {
+    margin: "0 22px 22px",
+    padding: "24px",
+    textAlign: "center",
+    color: "var(--ink-3)",
+    fontSize: "13px",
+    border: "1px dashed var(--rule)",
+    borderRadius: "3px",
+  },
   jsonWrap: {
     maxHeight: "500px",
     overflowY: "auto",
     overflowX: "auto",
-    borderRadius: "8px",
-    border: "1px solid #eee",
-    padding: "12px",
+    borderTop: "1px solid var(--rule)",
+    padding: "16px 22px",
     textAlign: "left",
-  },
-  placeholder: {
-    padding: "24px",
-    textAlign: "center",
-    color: "#999",
-    fontSize: "13px",
-    border: "1px dashed #ddd",
-    borderRadius: "8px",
   },
   statementsWrap: {
     display: "flex",
     flexDirection: "column",
-    gap: "28px",
   },
-  statementBlock: {
-    border: "1px solid #eee",
-    borderRadius: "8px",
-    overflow: "hidden",
-  },
-  statementTitle: {
-    margin: 0,
-    padding: "12px 16px",
-    background: "#2C4A87",
-    color: "#fff",
-    fontSize: "15px",
-  },
-  tableScroll: {
+  tw: {
+    borderTop: "1px solid var(--rule)",
     overflowX: "auto",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    fontSize: "13px",
+    fontSize: "13.5px",
   },
-  thLabel: {
+  caption: {
     textAlign: "left",
-    padding: "8px 16px",
-    borderBottom: "2px solid #eee",
-    background: "#f7f8fa",
+    fontSize: "10.5px",
+    fontWeight: 600,
+    letterSpacing: ".14em",
+    textTransform: "uppercase",
+    color: "var(--ink-3)",
+    padding: "15px 22px 9px",
+    captionSide: "top",
   },
   th: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: "11.5px",
+    fontWeight: 500,
+    color: "var(--ink-3)",
+    letterSpacing: ".04em",
+    borderBottom: "1px solid var(--rule)",
+    padding: "7px 14px 8px",
     textAlign: "right",
-    padding: "8px 12px",
-    borderBottom: "2px solid #eee",
-    background: "#f7f8fa",
-    whiteSpace: "nowrap",
-  },
-  titleRow: {
-    padding: "8px 16px 4px",
-    fontWeight: 700,
-    color: "#2C4A87",
-    background: "#f0f3f8",
-  },
-  tdLabel: {
-    padding: "6px 16px",
-    borderBottom: "1px solid #f5f5f5",
-    whiteSpace: "nowrap",
-  },
-  tdLabelSum: {
-    padding: "6px 16px",
-    borderBottom: "1px solid #f5f5f5",
-    borderTop: "1px solid #ddd",
-    fontWeight: 700,
-    whiteSpace: "nowrap",
-  },
-  td: {
-    padding: "6px 12px",
-    borderBottom: "1px solid #f5f5f5",
-    textAlign: "right",
-    whiteSpace: "nowrap",
-  },
-  tdSum: {
-    padding: "6px 12px",
-    borderBottom: "1px solid #f5f5f5",
-    borderTop: "1px solid #ddd",
-    textAlign: "right",
-    fontWeight: 700,
     whiteSpace: "nowrap",
   },
   footnotes: {
-    padding: "12px 16px",
-    background: "#fafafa",
-    borderTop: "1px solid #eee",
+    padding: "12px 22px",
+    background: "var(--band)",
+    borderTop: "1px solid var(--rule)",
     display: "flex",
     flexDirection: "column",
     gap: "8px",
@@ -512,11 +585,11 @@ const styles = {
     fontSize: "12.5px",
   },
   footnoteNote: {
-    color: "#333",
+    color: "var(--ink-2)",
     fontStyle: "italic",
   },
   footnoteComment: {
-    color: "#2EC4B6",
+    color: "var(--teal-dk)",
     marginTop: "2px",
   },
 };

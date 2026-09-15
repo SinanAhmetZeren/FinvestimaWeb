@@ -81,7 +81,7 @@ export default function Dcf() {
     }
   }
 
-  function handleClear() {
+  function handleRemoveFile() {
     setFile(null);
     setRows(makeEmptyRows(EMPTY_ROW_COUNT));
     setResult(null);
@@ -90,19 +90,26 @@ export default function Dcf() {
 
   const hasAnyInput = rows.some((r) => r.period.trim() || r.cashFlow.trim() || r.discountRate.trim());
 
+  function formatValue(value) {
+    if (value == null) return "—";
+    return typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value;
+  }
+
   return (
     <div className="App">
       <header className="App-header">
         <div style={styles.pageWrap}>
           <TopBar />
           <div style={styles.page}>
-            <div style={styles.card}>
-              <h1 style={styles.h1}>DCF Calculator</h1>
-              <p style={styles.subtitle}>
-                Upload a CSV, or type values directly: <code>Period,CashFlow,DiscountRate</code>
-              </p>
+            <div style={styles.app}>
+              <div style={styles.hd}>
+                <h3 style={styles.hdTitle}>DCF Calculator</h3>
+                <p style={styles.hdSubtitle}>
+                  Upload a CSV, or type values directly: <code>Period, CashFlow, DiscountRate</code>
+                </p>
+              </div>
 
-              <form onSubmit={handleUpload} style={styles.form}>
+              <form onSubmit={handleUpload} style={styles.bar}>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -111,73 +118,127 @@ export default function Dcf() {
                   style={styles.hiddenInput}
                   id="csv-upload"
                 />
-                <label htmlFor="csv-upload" style={styles.uploadButton}>
-                  {file ? file.name : "Choose CSV"}
-                </label>
-                <button style={styles.button} type="submit" disabled={isLoading || !hasAnyInput}>
-                  <span style={{ opacity: isLoading ? 0 : 1 }}>Calculate</span>
+                {file ? (
+                  <span style={styles.fileChip}>
+                    <FileIcon />
+                    <span style={styles.fileChipName}>{file.name}</span>
+                    <button type="button" style={styles.fileChipX} onClick={handleRemoveFile} aria-label="Remove">
+                      <XIcon />
+                    </button>
+                  </span>
+                ) : (
+                  <label htmlFor="csv-upload" style={styles.fileChip}>
+                    <FileIcon />
+                    <span style={styles.fileChipName}>Choose CSV</span>
+                  </label>
+                )}
+
+                <button style={styles.btn} type="submit" disabled={isLoading || !hasAnyInput}>
+                  <span style={{ opacity: isLoading ? 0 : 1, display: "inline-flex", alignItems: "center", gap: "7px" }}>
+                    <CalcIcon />
+                    Calculate
+                  </span>
                   {isLoading && <span style={styles.spinner} />}
                 </button>
-                <button style={styles.clearButton} type="button" onClick={handleClear} disabled={!hasAnyInput && !result}>
-                  Clear
-                </button>
+
+                {result && (
+                  <span style={styles.stat}>
+                    <CheckIcon />
+                    Total PV {formatValue(result.totalPresentValue)}
+                  </span>
+                )}
               </form>
 
-              <div style={styles.resultWrap}>
-                <div style={styles.tableScroll}>
-                  <table style={styles.table}>
-                    <thead>
-                      <tr>
-                        <th style={styles.th}>Period</th>
-                        <th style={styles.th}>Cash Flow</th>
-                        <th style={styles.th}>Discount Rate</th>
-                        <th style={styles.th}>Cumulative Factor</th>
-                        <th style={styles.th}>Present Value</th>
+              <div style={styles.content}>
+              <div style={styles.tw}>
+                <table className="fin-table" style={styles.table}>
+                  <caption style={styles.caption}>Cash flow inputs</caption>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Period</th>
+                      <th style={styles.th}>Cash Flow</th>
+                      <th style={styles.th}>Discount Rate</th>
+                      <th style={styles.th}>Cumulative Factor</th>
+                      <th style={styles.th}>Present Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => {
+                      const computed = result?.periods?.[i];
+                      return (
+                        <tr key={i}>
+                          <td>
+                            <input
+                              style={styles.cellInput}
+                              value={row.period}
+                              onChange={(e) => handleCellChange(i, "period", e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              style={{ ...styles.cellInput, textAlign: "right" }}
+                              value={row.cashFlow}
+                              onChange={(e) => handleCellChange(i, "cashFlow", e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              style={{ ...styles.cellInput, textAlign: "right" }}
+                              value={row.discountRate}
+                              onChange={(e) => handleCellChange(i, "discountRate", e.target.value)}
+                            />
+                          </td>
+                          <td>{computed ? computed.cumulativeDiscountFactor.toFixed(4) : "—"}</td>
+                          <td>{computed ? computed.presentValue.toFixed(2) : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                    {result && (
+                      <tr className="key">
+                        <td colSpan={4}>Total Present Value</td>
+                        <td>{formatValue(result.totalPresentValue)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row, i) => {
-                        const computed = result?.periods?.[i];
-                        return (
-                          <tr key={i}>
-                            <td style={styles.td}>
-                              <input
-                                style={styles.cellInput}
-                                value={row.period}
-                                onChange={(e) => handleCellChange(i, "period", e.target.value)}
-                              />
-                            </td>
-                            <td style={styles.td}>
-                              <input
-                                style={styles.cellInput}
-                                value={row.cashFlow}
-                                onChange={(e) => handleCellChange(i, "cashFlow", e.target.value)}
-                              />
-                            </td>
-                            <td style={styles.td}>
-                              <input
-                                style={styles.cellInput}
-                                value={row.discountRate}
-                                onChange={(e) => handleCellChange(i, "discountRate", e.target.value)}
-                              />
-                            </td>
-                            <td style={styles.td}>{computed ? computed.cumulativeDiscountFactor.toFixed(4) : "—"}</td>
-                            <td style={styles.td}>{computed ? computed.presentValue.toFixed(2) : "—"}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={styles.totalRow}>
-                  Total PV: <span style={styles.totalValue}>{result ? result.totalPresentValue.toFixed(2) : "—"}</span>
-                </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
               </div>
             </div>
           </div>
         </div>
       </header>
     </div>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" style={{ width: 14, height: 14, color: "var(--ink-3)", flexShrink: 0 }}>
+      <path d="M7 3h7l4 4v14H7z" />
+      <path d="M14 3v4h4" />
+    </svg>
+  );
+}
+function XIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ width: 12, height: 12 }}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+function CalcIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+      <rect x="4" y="3" width="16" height="18" rx="1.5" />
+      <path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01" />
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" style={{ width: 13, height: 13, color: "var(--teal)" }}>
+      <path d="M4 13l5 5L20 6" />
+    </svg>
   );
 }
 
@@ -192,60 +253,98 @@ const styles = {
   page: {
     flex: 1,
     minHeight: 0,
-    overflowY: "auto",
-    padding: "24px 20px 40px",
+    overflow: "hidden",
+    padding: "24px 22px 40px",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
   },
-  card: {
-    background: "#fff",
-    padding: "32px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-    width: "100%",
-    maxWidth: "700px",
-  },
-  h1: {
-    fontSize: "22px",
-    margin: "0 0 8px",
-    color: "#2C4A87",
-  },
-  subtitle: {
-    fontSize: "13px",
-    color: "#666",
-    marginBottom: "20px",
-  },
-  form: {
+  app: {
     display: "flex",
-    gap: "12px",
+    flexDirection: "column",
+    flex: 1,
+    minHeight: 0,
+    background: "var(--paper)",
+    border: "1px solid var(--rule)",
+    borderRadius: "3px",
+    overflow: "hidden",
+    width: "100%",
+    maxWidth: "900px",
+    textAlign: "left",
+  },
+  content: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+  },
+  hd: {
+    flexShrink: 0,
+    padding: "20px 22px 0",
+  },
+  hdTitle: {
+    fontSize: "21px",
+    fontWeight: 600,
+    letterSpacing: "-0.02em",
+    margin: 0,
+    color: "var(--ink)",
+  },
+  hdSubtitle: {
+    fontSize: "13.5px",
+    color: "var(--ink-2)",
+    marginTop: "4px",
+  },
+  bar: {
+    flexShrink: 0,
+    display: "flex",
     alignItems: "center",
-    marginBottom: "24px",
+    gap: "10px",
+    padding: "16px 22px",
+    flexWrap: "wrap",
   },
   hiddenInput: {
     display: "none",
   },
-  uploadButton: {
-    padding: "10px 18px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
+  fileChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "9px",
+    border: "1px solid var(--rule)",
     background: "#fff",
-    color: "#2C4A87",
-    fontSize: "14px",
+    borderRadius: "3px",
+    padding: "8px 12px",
+    fontSize: "13px",
+    fontWeight: 500,
+    maxWidth: "260px",
     cursor: "pointer",
-    whiteSpace: "nowrap",
+    color: "var(--ink)",
+  },
+  fileChipName: {
     overflow: "hidden",
     textOverflow: "ellipsis",
-    maxWidth: "180px",
+    whiteSpace: "nowrap",
   },
-  button: {
-    position: "relative",
-    padding: "10px 18px",
-    borderRadius: "8px",
+  fileChipX: {
     border: "none",
-    background: "#2EC4B6",
+    background: "none",
+    cursor: "pointer",
+    color: "var(--ink-3)",
+    padding: 0,
+    display: "flex",
+    fontFamily: "inherit",
+  },
+  btn: {
+    position: "relative",
+    fontFamily: "inherit",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "7px",
+    border: "1px solid var(--teal)",
+    background: "var(--teal)",
     color: "#fff",
-    fontSize: "14px",
+    fontSize: "13px",
+    fontWeight: 600,
+    padding: "9px 16px",
+    borderRadius: "3px",
     cursor: "pointer",
   },
   spinner: {
@@ -261,54 +360,51 @@ const styles = {
     borderRadius: "50%",
     animation: "dcf-spin 0.7s linear infinite",
   },
-  clearButton: {
-    padding: "10px 18px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-    background: "#fff",
-    color: "#c0392b",
-    fontSize: "14px",
-    cursor: "pointer",
+  stat: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "7px",
+    fontSize: "12.5px",
+    fontWeight: 500,
+    color: "var(--ink-2)",
   },
-  resultWrap: {
-    marginTop: "12px",
-  },
-  tableScroll: {
-    maxHeight: "320px",
-    overflowY: "auto",
-  },
-  totalRow: {
-    textAlign: "right",
-    marginTop: "16px",
-    fontSize: "15px",
-    color: "#333",
-  },
-  totalValue: {
-    color: "#1a9e6a",
-    fontWeight: 700,
-    fontSize: "17px",
+  tw: {
+    borderTop: "1px solid var(--rule)",
+    overflowX: "auto",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    fontSize: "13px",
+    fontSize: "13.5px",
+  },
+  caption: {
+    textAlign: "left",
+    fontSize: "10.5px",
+    fontWeight: 600,
+    letterSpacing: ".14em",
+    textTransform: "uppercase",
+    color: "var(--ink-3)",
+    padding: "15px 22px 9px",
   },
   th: {
-    textAlign: "left",
-    borderBottom: "2px solid #eee",
-    padding: "8px",
-  },
-  td: {
-    borderBottom: "1px solid #f0f0f0",
-    padding: "4px 8px",
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: "11.5px",
+    fontWeight: 500,
+    color: "var(--ink-3)",
+    letterSpacing: ".04em",
+    borderBottom: "1px solid var(--rule)",
+    padding: "7px 14px 8px",
+    textAlign: "right",
+    whiteSpace: "nowrap",
   },
   cellInput: {
     width: "100%",
     border: "1px solid transparent",
     background: "transparent",
     padding: "4px",
-    borderRadius: "4px",
+    borderRadius: "3px",
     fontSize: "13px",
     fontFamily: "inherit",
+    color: "var(--ink)",
   },
 };

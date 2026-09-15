@@ -2,7 +2,6 @@ import React from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { updateAsLoggedOut } from "../slices/UserSlice";
-import logo from "../assets/finvestimaTransparentLogo.png";
 
 export default function TopBar() {
   const dispatch = useDispatch();
@@ -16,17 +15,18 @@ export default function TopBar() {
 
   return (
     <div style={styles.bar}>
-      <div style={styles.logoWrap}>
-        <img src={logo} alt="Finvestima" style={styles.logo} />
-      </div>
-      <nav style={styles.nav}>
-        <Link to="/" style={styles.navLink(location.pathname === "/")}>
+      <span style={styles.logo}>
+        finvest<b style={styles.logoAccent}>ima</b>
+      </span>
+      <nav style={styles.tabs}>
+        <Link to="/" style={styles.tab(location.pathname === "/")}>
           DCF
         </Link>
-        <Link to="/extract" style={styles.navLink(location.pathname === "/extract")}>
+        <Link to="/extract" style={styles.tab(location.pathname === "/extract")}>
           Extract
         </Link>
       </nav>
+      <span style={styles.spacer} />
       <button style={styles.logout} onClick={handleLogout}>
         Log out
       </button>
@@ -41,42 +41,48 @@ const styles = {
     boxSizing: "border-box",
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: "12px 24px",
-    background: "rgba(46, 196, 182, 0.3)",
-    borderBottom: "1px solid #eee",
-  },
-  logoWrap: {
-    background: "#fff",
-    borderRadius: "1rem",
-    width: "12rem",
-    height: "48px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    gap: "22px",
+    padding: "0 18px",
+    height: "50px",
+    background: "var(--paper)",
+    borderBottom: "1px solid var(--rule)",
   },
   logo: {
-    height: "44px",
+    fontSize: "17px",
+    fontWeight: 600,
+    letterSpacing: "-0.03em",
+    color: "var(--ink)",
   },
-  nav: {
+  logoAccent: {
+    color: "var(--teal)",
+    fontWeight: 600,
+  },
+  tabs: {
     display: "flex",
-    gap: "8px",
+    gap: "2px",
+    height: "100%",
   },
-  navLink: (active) => ({
-    padding: "8px 16px",
-    borderRadius: "8px",
-    border: active ? "1px solid #2C4A87" : "1px solid transparent",
-    background: active ? "#fff" : "transparent",
-    color: "#2C4A87",
-    fontWeight: active ? 700 : 500,
-    fontSize: "14px",
+  tab: (active) => ({
+    display: "flex",
+    alignItems: "center",
+    fontSize: "13.5px",
+    fontWeight: active ? 600 : 500,
+    color: active ? "var(--ink)" : "var(--ink-3)",
+    padding: "0 13px",
+    height: "100%",
+    borderBottom: active ? "2px solid var(--teal)" : "2px solid transparent",
     textDecoration: "none",
   }),
+  spacer: {
+    flex: 1,
+  },
   logout: {
-    padding: "8px 16px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
-    background: "#fff",
+    fontFamily: "inherit",
+    border: "none",
+    background: "none",
     cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: 500,
+    color: "var(--ink-3)",
   },
 };
