@@ -1,0 +1,5 @@
+- Verify sample JSON + sample file few-shot in Gemini prompt is accurate
+  (already implemented in FinvestimaAPI/Services/Ai/GeminiService.cs:
+  sends Resources/sample-statement.png + hand-written SampleOutputJson
+  alongside the real document on every /api/ai/extract-financials call.
+  Double-check SampleOutputJson values exactly match the sample image.)
