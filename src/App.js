@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import AuthPage from "./pages/AuthPage";
 import Dcf from "./pages/Dcf";
 import Extract from "./pages/Extract";
+import Valuator from "./pages/Valuator";
 
 function PrivateRoute({ children }) {
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
@@ -31,6 +32,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <Extract />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/valuator"
+          element={
+            <PrivateRoute>
+              <Valuator />
             </PrivateRoute>
           }
         />

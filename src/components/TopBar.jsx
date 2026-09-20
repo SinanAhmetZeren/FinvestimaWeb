@@ -2,6 +2,7 @@ import React from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { updateAsLoggedOut } from "../slices/UserSlice";
+import logo from "../assets/finvestimaLogo.jpeg";
 
 export default function TopBar() {
   const dispatch = useDispatch();
@@ -15,15 +16,16 @@ export default function TopBar() {
 
   return (
     <div style={styles.bar}>
-      <span style={styles.logo}>
-        finvest<b style={styles.logoAccent}>ima</b>
-      </span>
+      <img src={logo} alt="Finvestima" style={styles.logoImg} />
       <nav style={styles.tabs}>
         <Link to="/" style={styles.tab(location.pathname === "/")}>
           DCF
         </Link>
         <Link to="/extract" style={styles.tab(location.pathname === "/extract")}>
           Extract
+        </Link>
+        <Link to="/valuator" style={styles.tab(location.pathname === "/valuator")}>
+          Valuator
         </Link>
       </nav>
       <span style={styles.spacer} />
@@ -47,15 +49,10 @@ const styles = {
     background: "var(--paper)",
     borderBottom: "1px solid var(--rule)",
   },
-  logo: {
-    fontSize: "17px",
-    fontWeight: 600,
-    letterSpacing: "-0.03em",
-    color: "var(--ink)",
-  },
-  logoAccent: {
-    color: "var(--teal)",
-    fontWeight: 600,
+  logoImg: {
+    height: "39px",
+    width: "auto",
+    display: "block",
   },
   tabs: {
     display: "flex",

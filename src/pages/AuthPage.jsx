@@ -10,7 +10,7 @@ import {
   useResetPasswordMutation,
   updateAsLoggedIn,
 } from "../slices/UserSlice";
-import logo from "../assets/finvestimaTransparentLogo.png";
+import logo from "../assets/finvestimaLogo.jpeg";
 
 // ── tokens ────────────────────────────────────────────────────────────────────
 const C = {
@@ -221,9 +221,9 @@ export default function AuthPage() {
                   <button style={{ ...s.btn, opacity: username && password ? 1 : 0.55 }} onClick={handleLogin} disabled={busy || !username || !password}>
                     {busy ? <Spinner /> : "Login"}
                   </button>
-                  <div style={s.rowMid}>
+                  <div style={{ ...s.rowMid, display: "none" }}>
                     Don't have an account?
-                    <button style={s.lnk} onClick={() => go("Register1")}>Sign up</button>
+                    <button style={s.lnk} onClick={() => {/* go("Register1") */}}>Sign up</button>
                   </div>
                 </div>
               </>

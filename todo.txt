@@ -1,5 +1,36 @@
-- Verify sample JSON + sample file few-shot in Gemini prompt is accurate
+1 Verify sample JSON + sample file few-shot in Gemini prompt is accurate
   (already implemented in FinvestimaAPI/Services/Ai/GeminiService.cs:
   sends Resources/sample-statement.png + hand-written SampleOutputJson
   alongside the real document on every /api/ai/extract-financials call.
   Double-check SampleOutputJson values exactly match the sample image.)
+
+2 Remove TypeScript from the code (dependencies can remain).
+  (Valuator port under src/lib, src/store/valuator.tsx, src/components/
+  (Rail, SourceTrail, Stepper, ValuatorTopbar, inspector, primitives,
+  useCrosshair), src/screens/L1Ingest..L7Audit, src/pages/Valuator.tsx
+  are all .ts/.tsx and mid-build had a type error (Segmented value/onChange
+  generic mismatch in L4Model.tsx). Convert these to plain .js/.jsx.)
+
+3 DONE - From the Finvestima UI, disable the register functionality for users:
+  make "Sign up" display: none, and comment out its route.
+  (AuthPage.jsx: "Don't have an account? Sign up" row set to display:none,
+  onClick's go("Register1") call commented out. Register1/Register2 pages
+  and handleRegister/handleConfirm logic left intact for re-enabling later.)
+
+
+What it does today:
+
+lib/model.ts→.js's compute() is a genuine, working DCF calculator (5-year FCF projection, WACC discounting, terminal value via Gordon growth, plus EBITDA-multiple and net-asset-value cross-checks) — the math is real and correct.
+But every input it runs on is baked into lib/data.js as one fictional Turkish manufacturing company: trial balance rows, addbacks, FX rates, peer comps, driver defaults, even the L7 "audit findings" text — all static, all in Turkish, all describing one made-up case.
+The 7 screens (L1 Ingest → L7 Audit) are a UI walkthrough of a valuation workflow, but nothing in them actually reads a file, calls an API, or ingests real financials. Clicking through "layers" just flips which static dataset is displayed and feeds slightly different numbers into compute().
+
+
+What's needed to make it a real engine:
+
+Real data ingestion — replace SOURCES/TRIAL/COLUMN_MAP (L1–L2) with actual file upload + parsing (Excel/CSV trial balance, bank/loan schedules), likely reusing the same Gemini extraction pipeline already built for the Extract page.
+Real account mapping — L2's MAP_OPTIONS/mapping logic needs to become an actual (or AI-assisted) chart-of-accounts classifier instead of pre-assigned map: "rev" etc.
+Real FX/normalization — L3's FX_ROWS needs live or historical FX rate lookups instead of literal numbers.
+User-supplied assumptions — L5's DRIVERS (growth, margin expansion, capex%, WACC, tax rate) need to come from user input/company data instead of fixed defaults in DEFAULT_ASSUMPTIONS.
+Real peer comps — L6's PEERS array needs a market-data source (comparable company multiples) instead of six fabricated rows.
+Backend wiring — none of this talks to FinvestimaAPI at all yet; it's 100% client-side state (store/valuator.jsx) with useMemo. A real version needs persistence, backend calculation/validation, and probably auth-scoped saved valuations.
+Drop the fixed base-year constants — B in model.ts (revenue, EBITDA, net debt, etc.) is hardcoded to one company; compute() needs to take these as parameters derived from the ingested data, not module-level constants.
