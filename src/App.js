@@ -7,6 +7,7 @@ import AuthPage from "./pages/AuthPage";
 import Dcf from "./pages/Dcf";
 import Extract from "./pages/Extract";
 import Valuator from "./pages/Valuator";
+import Landing from "./pages/Landing";
 
 function PrivateRoute({ children }) {
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
@@ -19,8 +20,9 @@ export default function App() {
       <ToastContainer position="top-center" autoClose={4000} />
       <Routes>
         <Route path="/login" element={<AuthPage />} />
+        <Route path="/" element={<Landing />} />
         <Route
-          path="/"
+          path="/dcf"
           element={
             <PrivateRoute>
               <Dcf />

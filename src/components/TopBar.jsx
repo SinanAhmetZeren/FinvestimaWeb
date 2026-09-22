@@ -18,7 +18,7 @@ export default function TopBar() {
     <div style={styles.bar}>
       <img src={logo} alt="Finvestima" style={styles.logoImg} />
       <nav style={styles.tabs}>
-        <Link to="/" style={styles.tab(location.pathname === "/")}>
+        <Link to="/dcf" style={styles.tab(location.pathname === "/dcf")}>
           DCF
         </Link>
         <Link to="/extract" style={styles.tab(location.pathname === "/extract")}>
