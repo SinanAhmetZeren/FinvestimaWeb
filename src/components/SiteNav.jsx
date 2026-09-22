@@ -27,7 +27,7 @@ export default function SiteNav() {
           ☰
         </button>
         <div className={"navlinks" + (navOpen ? " open" : "")} onClick={() => setNavOpen(false)}>
-          <Link to="/engine">Motor</Link>
+          <Link to="/engine" className="motor-link">Motor</Link>
           <a href="/#nasil">Nasıl çalışır</a>
           <a href="/#mercek">Üç mercek</a>
           <a href="/#denetim">Denetim</a>
