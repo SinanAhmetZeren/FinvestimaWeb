@@ -22,7 +22,7 @@ export default function App() {
         <Route path="/login" element={<AuthPage />} />
         <Route path="/" element={<Landing />} />
         <Route
-          path="/dcf"
+          path="/engine"
           element={
             <PrivateRoute>
               <Dcf />

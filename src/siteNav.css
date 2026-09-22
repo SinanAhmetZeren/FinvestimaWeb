@@ -1,0 +1,58 @@
+/* Shared top navigation — used identically on the landing page and every
+   authenticated "engine" page (DCF/Extract/Valuator), so the same bar is
+   always visible regardless of route. Self-contained: carries its own copy
+   of the tokens it needs so it renders correctly even outside .landing-root. */
+.site-nav{
+  --navy:#031E47; --gold:#B68734;
+  --body:#3F4C60; --line:#E1E8F0;
+  --sans:"Inter",system-ui,-apple-system,sans-serif;
+  --wrap:1180px;
+  font-family:var(--sans);
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:60;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+}
+.site-nav *{box-sizing:border-box}
+.site-nav .wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+.site-nav .navin{display:flex;align-items:center;gap:30px;height:56px}
+.site-nav .logo{height:38px;width:auto;display:block}
+.site-nav .navlinks{display:flex;gap:28px;margin-left:auto;font-size:15px;font-weight:500;color:var(--body);letter-spacing:-.01em}
+.site-nav .navlinks a,.site-nav .navlinks button{text-decoration:none;color:inherit;background:none;border:none;padding:0;font:inherit;cursor:pointer}
+.site-nav .navlinks a:hover,.site-nav .navlinks button:hover{color:var(--navy)}
+.site-nav .btn{display:inline-block;border:1px solid var(--navy);background:var(--navy);color:#fff;
+  border-radius:9px;padding:12px 21px;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:-.008em;
+  font-family:var(--sans);transition:transform .15s,box-shadow .15s;cursor:pointer}
+.site-nav .btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(3,30,71,.18)}
+.site-nav .btn.ghost{background:#fff;color:var(--navy)}
+.site-nav .btn.gold{background:var(--gold);border-color:var(--gold)}
+.site-nav .btn.sm{padding:8px 15px;font-size:13.5px}
+.site-nav .burger{display:none;margin-left:auto;background:none;border:1px solid var(--line);
+  border-radius:7px;padding:7px 10px;font-size:15px;font-family:inherit;cursor:pointer}
+
+@media (max-width:980px){
+  .site-nav .navlinks{display:none}
+  .site-nav .burger:not(.usermenu-toggle){display:block}
+  .site-nav .navlinks.open{display:flex;position:absolute;top:calc(56px + env(safe-area-inset-top,0px));left:0;right:0;background:#fff;
+    flex-direction:column;padding:18px 24px;border-bottom:1px solid var(--line);gap:16px}
+}
+
+/* user menu (log out), always visible when logged in regardless of width */
+.site-nav .usermenu{position:relative;margin-left:0}
+.site-nav .usermenu-toggle{display:block;margin-left:0}
+.site-nav .usermenu-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:#fff;
+  border:1px solid var(--line);border-radius:9px;box-shadow:0 10px 26px rgba(3,30,71,.14);
+  padding:6px;min-width:120px;z-index:70}
+.site-nav .usermenu-dropdown button{display:block;width:100%;text-align:left;background:none;border:none;
+  font:inherit;font-size:14px;color:var(--body);padding:9px 12px;border-radius:6px;cursor:pointer}
+.site-nav .usermenu-dropdown button:hover{background:var(--line);color:var(--navy)}
+
+/* secondary "engine" tab row (DCF/Extract/Valuator), shown below .site-nav
+   only on the authenticated engine pages */
+.engine-tabs{
+  flex-shrink:0;width:100%;box-sizing:border-box;display:flex;gap:2px;justify-content:center;
+  padding:0 24px;height:42px;background:var(--paper,#F5F8FB);border-bottom:1px solid var(--rule,#E1E8F0);
+}
+.engine-tabs a{
+  display:flex;align-items:center;font-size:13.5px;font-weight:500;color:var(--ink-3,#6B7889);
+  padding:0 13px;height:100%;border-bottom:2px solid transparent;text-decoration:none;font-family:inherit;
+}
+.engine-tabs a.active{font-weight:600;color:var(--ink,#122238);border-bottom:2px solid var(--teal,#42BCBF)}

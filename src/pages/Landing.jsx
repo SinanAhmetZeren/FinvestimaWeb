@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import "../landing.css";
 import logo from "../assets/finvestimaLogo.jpeg";
+import SiteNav from "../components/SiteNav";
 
 const LAYERS = [
   {
@@ -127,7 +127,6 @@ function FlowArrow() {
 
 export default function Landing() {
   const [sel, setSel] = useState(0);
-  const [navOpen, setNavOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [firstName, setFirstName] = useState("");
   const nameInputRef = useRef(null);
@@ -175,29 +174,7 @@ export default function Landing() {
 
   return (
     <div className="landing-root" ref={rootRef}>
-      <nav>
-        <div className="wrap navin">
-          <a href="#top">
-            <img className="logo" src={logo} alt="Finvestima" />
-          </a>
-          <button className="burger" aria-label="Menü" onClick={() => setNavOpen((v) => !v)}>
-            ☰
-          </button>
-          <div className={"navlinks" + (navOpen ? " open" : "")} onClick={() => setNavOpen(false)}>
-            <Link to="/dcf">Engine</Link>
-            <a href="#fiyat">Fiyatlandırma</a>
-            <a href="#sss">SSS</a>
-          </div>
-          <a className="btn sm" href="#demo">Ön tarama isteyin</a>
-        </div>
-        <div className="subnav">
-          <div className="wrap" style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
-            <a href="#nasil">Nasıl çalışır</a>
-            <a href="#mercek">Üç mercek</a>
-            <a href="#denetim">Denetim</a>
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       {/* ══ HERO ══ */}
       <header className="hero" id="top">

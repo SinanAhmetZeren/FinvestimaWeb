@@ -24,14 +24,7 @@
 .landing-root .mono,.landing-root .amt,.landing-root .val,.landing-root .v,.landing-root .vnum,.landing-root .hmeta b{font-feature-settings:"tnum";font-variant-numeric:tabular-nums}
 .landing-root :focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:3px}
 
-/* ── nav ── */
-.landing-root nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:60;background:rgba(255,255,255,.92);
-  backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.landing-root .navin{display:flex;align-items:center;gap:30px;height:70px}
-.landing-root .logo{height:26px;width:auto}
-.landing-root .navlinks{display:flex;gap:28px;margin-left:auto;font-size:15px;font-weight:500;color:var(--body);letter-spacing:-.01em}
-.landing-root .navlinks a{text-decoration:none}
-.landing-root .navlinks a:hover{color:var(--navy)}
+/* ── nav: handled by the shared .site-nav component (src/siteNav.css) ── */
 .landing-root .btn{display:inline-block;border:1px solid var(--navy);background:var(--navy);color:#fff;
   border-radius:9px;padding:12px 21px;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:-.008em;
   font-family:var(--sans);transition:transform .15s,box-shadow .15s}
@@ -39,16 +32,6 @@
 .landing-root .btn.ghost{background:#fff;color:var(--navy)}
 .landing-root .btn.gold{background:var(--gold);border-color:var(--gold)}
 .landing-root .btn.sm{padding:8px 15px;font-size:13.5px}
-.landing-root .burger{display:none;margin-left:auto;background:none;border:1px solid var(--line);
-  border-radius:7px;padding:7px 10px;font-size:15px}
-
-/* ── subnav ── */
-.landing-root .subnav{background:var(--paper);border-bottom:1px solid var(--line);
-  display:flex;align-items:center;gap:22px;min-height:40px;padding:8px 0;
-  overflow-x:auto;flex-wrap:wrap}
-.landing-root .subnav a{font-size:12.5px;color:var(--muted);text-decoration:none;
-  font-weight:500;letter-spacing:-.006em;white-space:nowrap}
-.landing-root .subnav a:hover{color:var(--navy)}
 
 /* ── hero ── */
 .landing-root .hero{padding:74px 0 60px;background:
@@ -285,10 +268,6 @@
   .landing-root .pdetail{grid-template-columns:1fr}
   .landing-root .pdetail>div{border-right:0;border-bottom:1px solid var(--line2)}
   .landing-root .fgrid{grid-template-columns:1fr 1fr}
-  .landing-root .navlinks{display:none}
-  .landing-root .burger{display:block}
-  .landing-root .navlinks.open{display:flex;position:absolute;top:calc(70px + env(safe-area-inset-top,0px));left:0;right:0;background:#fff;
-    flex-direction:column;padding:18px 24px;border-bottom:1px solid var(--line);gap:16px}
   .landing-root section{padding:58px 0}
   .landing-root .ctabox{padding:32px 24px}
 }
