@@ -9,7 +9,7 @@ export default function TopBar() {
     <>
       <SiteNav />
       <nav className="engine-tabs">
-        <Link to="/engine" className={location.pathname === "/engine" ? "active" : ""}>
+        <Link to="/dcf" className={location.pathname === "/dcf" ? "active" : ""}>
           DCF
         </Link>
         <Link to="/extract" className={location.pathname === "/extract" ? "active" : ""}>

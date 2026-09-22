@@ -8,6 +8,7 @@ import Dcf from "./pages/Dcf";
 import Extract from "./pages/Extract";
 import Valuator from "./pages/Valuator";
 import Landing from "./pages/Landing";
+import Motor from "./pages/Motor";
 
 function PrivateRoute({ children }) {
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
@@ -23,6 +24,14 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route
           path="/engine"
+          element={
+            <PrivateRoute>
+              <Motor />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dcf"
           element={
             <PrivateRoute>
               <Dcf />
