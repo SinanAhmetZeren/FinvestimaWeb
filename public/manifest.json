@@ -1,0 +1,11 @@
+{
+  "short_name": "Finvestima",
+  "name": "Finvestima — Yapay zekâ destekli şirket değerleme",
+  "icons": [
+    { "src": "favicon-f-v2-192.png", "type": "image/png", "sizes": "192x192" }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#031E47",
+  "background_color": "#ffffff"
+}
