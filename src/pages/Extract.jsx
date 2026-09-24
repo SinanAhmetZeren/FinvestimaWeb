@@ -146,7 +146,7 @@ export default function Extract() {
 
     setIsLoadingPreview(true);
     try {
-      const preview = await previewLogoRedaction(file).unwrap();
+      const preview = await previewLogoRedaction({ file, page: 1 }).unwrap();
       setCropState({
         previewImageBase64: preview.previewImageBase64,
         topPercent: preview.suggestedTopPercent,
@@ -154,11 +154,32 @@ export default function Extract() {
         leftPercent: 2,
         rightPercent: 2,
         pageCount: preview.pageCount || 1,
+        previewPage: preview.previewPage || 1,
         pagesInput: "",
       });
     } catch (err) {
       console.error("[Extract] Failed to build crop preview:", err);
       toast.error(err?.data || "Failed to prepare document preview.");
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  }
+
+  async function handleViewPage(pageNum) {
+    if (!file) return;
+    setIsLoadingPreview(true);
+    try {
+      const preview = await previewLogoRedaction({ file, page: pageNum }).unwrap();
+      // Only the displayed reference image/page number changes — the crop bands and page
+      // selection the user already set apply uniformly across every page and are untouched.
+      setCropState((prev) =>
+        prev
+          ? { ...prev, previewImageBase64: preview.previewImageBase64, previewPage: preview.previewPage || pageNum }
+          : prev
+      );
+    } catch (err) {
+      console.error("[Extract] Failed to load page preview:", err);
+      toast.error(err?.data || "Failed to load that page.");
     } finally {
       setIsLoadingPreview(false);
     }
@@ -376,6 +397,9 @@ export default function Extract() {
                   leftPercent={cropState.leftPercent}
                   rightPercent={cropState.rightPercent}
                   pageCount={cropState.pageCount}
+                  previewPage={cropState.previewPage}
+                  isLoadingPreview={isLoadingPreview}
+                  onViewPage={handleViewPage}
                   pagesInput={cropState.pagesInput}
                   onChange={handleCropChange}
                 />
@@ -498,7 +522,19 @@ function YearsDropdown({ years, selected, onToggle }) {
 // before the document is sent to Gemini, so a printed logo/letterhead is never seen by the
 // model. Controlled by the parent (Extract): the parent's main button relabels itself to
 // "Process Document" and reads the current percentages when clicked — no buttons live here.
-function CropConfirmation({ previewImageBase64, topPercent, bottomPercent, leftPercent, rightPercent, pageCount, pagesInput, onChange }) {
+function CropConfirmation({
+  previewImageBase64,
+  topPercent,
+  bottomPercent,
+  leftPercent,
+  rightPercent,
+  pageCount,
+  previewPage,
+  isLoadingPreview,
+  onViewPage,
+  pagesInput,
+  onChange,
+}) {
   const containerRef = useRef(null);
   const draggingRef = useRef(null); // "top" | "bottom" | "left" | "right" | null
   // Always read the latest values inside the move handler without needing to recreate it —
@@ -594,6 +630,30 @@ function CropConfirmation({ previewImageBase64, topPercent, bottomPercent, leftP
               style={cropStyles.pageSelectInput}
             />
           </label>
+        </div>
+      )}
+
+      {pageCount > 1 && (
+        <div style={cropStyles.pageNav}>
+          <button
+            type="button"
+            style={cropStyles.pageNavBtn}
+            onClick={() => onViewPage(previewPage - 1)}
+            disabled={previewPage <= 1 || isLoadingPreview}
+          >
+            ← Prev
+          </button>
+          <span style={cropStyles.pageNavLabel}>
+            Viewing page {previewPage} of {pageCount}
+          </span>
+          <button
+            type="button"
+            style={cropStyles.pageNavBtn}
+            onClick={() => onViewPage(previewPage + 1)}
+            disabled={previewPage >= pageCount || isLoadingPreview}
+          >
+            Next →
+          </button>
         </div>
       )}
 
@@ -735,6 +795,30 @@ const cropStyles = {
     borderRadius: "3px",
     padding: "5px 8px",
     width: "140px",
+  },
+  pageNav: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "16px",
+    marginBottom: "10px",
+  },
+  pageNavBtn: {
+    fontFamily: "inherit",
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "var(--teal)",
+    background: "#fff",
+    border: "1px solid var(--teal)",
+    borderRadius: "3px",
+    padding: "6px 14px",
+    cursor: "pointer",
+  },
+  pageNavLabel: {
+    fontSize: "13px",
+    color: "var(--ink-2)",
+    minWidth: "160px",
+    textAlign: "center",
   },
   imageWrap: {
     position: "relative",

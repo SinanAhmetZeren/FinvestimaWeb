@@ -40,9 +40,10 @@ export const aiApiSlice = apiSlice.injectEndpoints({
       query: (jobId) => `/api/ai/extract-financials/${jobId}`,
     }),
     previewLogoRedaction: builder.mutation({
-      queryFn: async (file, api, extraOptions) => {
+      queryFn: async ({ file, page } = {}, api, extraOptions) => {
         const formData = new FormData();
         formData.append("file", file);
+        if (page != null) formData.append("page", page);
         return aiBaseQuery(
           { url: "/api/ai/extract-financials/preview", method: "POST", body: formData },
           api,
