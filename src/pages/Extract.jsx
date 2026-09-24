@@ -5,9 +5,13 @@ import "react-json-view-lite/dist/index.css";
 import {
   useStartExtractionJobMutation,
   useLazyGetExtractionJobQuery,
-  usePreviewLogoRedactionMutation,
 } from "../slices/AiSlice";
 import TopBar from "../components/TopBar";
+import { loadPdf, renderPdfPageToCanvas, imageFileToCanvas, analyzeCropSuggestion } from "../lib/pdfPreview";
+
+function canvasToBase64(canvas) {
+  return canvas.toDataURL("image/png").split(",")[1];
+}
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -34,7 +38,6 @@ const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i);
 export default function Extract() {
   const [startExtractionJob] = useStartExtractionJobMutation();
   const [fetchJob] = useLazyGetExtractionJobQuery();
-  const [previewLogoRedaction] = usePreviewLogoRedactionMutation();
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -49,6 +52,7 @@ export default function Extract() {
   const fileInputRef = useRef(null);
   const pollTimeoutRef = useRef(null);
   const flashCounterRef = useRef(0);
+  const pdfDocRef = useRef(null); // cached pdf.js document for instant page navigation
 
   function toggleYear(year) {
     setSelectedYears((prev) =>
@@ -73,6 +77,7 @@ export default function Extract() {
     setFile(selected);
     setResult(null);
     setCropState(null);
+    pdfDocRef.current = null;
   }
 
   async function pollJob(jobId) {
@@ -146,42 +151,51 @@ export default function Extract() {
 
     setIsLoadingPreview(true);
     try {
-      const preview = await previewLogoRedaction({ file, page: 1 }).unwrap();
+      const isPdf = file.name.toLowerCase().endsWith(".pdf");
+      let canvas;
+      let pageCount = 1;
+
+      if (isPdf) {
+        const pdfDoc = await loadPdf(file);
+        pdfDocRef.current = pdfDoc;
+        pageCount = pdfDoc.numPages;
+        canvas = await renderPdfPageToCanvas(pdfDoc, 1);
+      } else {
+        pdfDocRef.current = null;
+        canvas = await imageFileToCanvas(file);
+      }
+
+      const { topPercent, bottomPercent } = analyzeCropSuggestion(canvas);
       setCropState({
-        previewImageBase64: preview.previewImageBase64,
-        topPercent: preview.suggestedTopPercent,
-        bottomPercent: preview.suggestedBottomPercent,
+        previewImageBase64: canvasToBase64(canvas),
+        topPercent,
+        bottomPercent,
         leftPercent: 2,
         rightPercent: 2,
-        pageCount: preview.pageCount || 1,
-        previewPage: preview.previewPage || 1,
+        pageCount,
+        previewPage: 1,
         pagesInput: "",
       });
     } catch (err) {
       console.error("[Extract] Failed to build crop preview:", err);
-      toast.error(err?.data || "Failed to prepare document preview.");
+      toast.error("Failed to prepare document preview.");
     } finally {
       setIsLoadingPreview(false);
     }
   }
 
+  // Client-side page navigation — pdf.js already has the document loaded, so this is just a
+  // local render with no network round trip, unlike the previous server-rendered approach.
   async function handleViewPage(pageNum) {
-    if (!file) return;
-    setIsLoadingPreview(true);
+    if (!pdfDocRef.current) return;
     try {
-      const preview = await previewLogoRedaction({ file, page: pageNum }).unwrap();
-      // Only the displayed reference image/page number changes — the crop bands and page
-      // selection the user already set apply uniformly across every page and are untouched.
+      const canvas = await renderPdfPageToCanvas(pdfDocRef.current, pageNum);
       setCropState((prev) =>
-        prev
-          ? { ...prev, previewImageBase64: preview.previewImageBase64, previewPage: preview.previewPage || pageNum }
-          : prev
+        prev ? { ...prev, previewImageBase64: canvasToBase64(canvas), previewPage: pageNum } : prev
       );
     } catch (err) {
-      console.error("[Extract] Failed to load page preview:", err);
-      toast.error(err?.data || "Failed to load that page.");
-    } finally {
-      setIsLoadingPreview(false);
+      console.error("[Extract] Failed to render page:", err);
+      toast.error("Failed to load that page.");
     }
   }
 
@@ -221,6 +235,7 @@ export default function Extract() {
     setIsSending(false);
     setPollFlash(null);
     setCropState(null);
+    pdfDocRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
