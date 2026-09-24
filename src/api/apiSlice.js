@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-const API_URL = window.location.hostname === "localhost"
+export const API_URL = window.location.hostname === "localhost"
   ? "http://localhost:5192"
   : "https://api.finvestima.com";
 
