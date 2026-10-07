@@ -7,6 +7,7 @@ import AuthPage from "./pages/AuthPage";
 import Dcf from "./pages/Dcf";
 import Extract from "./pages/Extract";
 import Valuator from "./pages/Valuator";
+import ValuatorPro from "./pages/ValuatorPro";
 import Landing from "./pages/Landing";
 import Motor from "./pages/Motor";
 
@@ -51,6 +52,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <Valuator />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/valuator-pro"
+          element={
+            <PrivateRoute>
+              <ValuatorPro />
             </PrivateRoute>
           }
         />
