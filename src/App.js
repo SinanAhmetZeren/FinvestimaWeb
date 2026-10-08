@@ -8,6 +8,7 @@ import Dcf from "./pages/Dcf";
 import Extract from "./pages/Extract";
 import Valuator from "./pages/Valuator";
 import ValuatorPro from "./pages/ValuatorPro";
+import Tekduzen from "./pages/Tekduzen";
 import Landing from "./pages/Landing";
 import Motor from "./pages/Motor";
 
@@ -60,6 +61,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <ValuatorPro />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/tekduzen"
+          element={
+            <PrivateRoute>
+              <Tekduzen />
             </PrivateRoute>
           }
         />

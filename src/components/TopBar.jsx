@@ -21,6 +21,9 @@ export default function TopBar() {
         <Link to="/valuator-pro" className={location.pathname === "/valuator-pro" ? "active" : ""}>
           Valuator Pro
         </Link>
+        <Link to="/tekduzen" className={location.pathname === "/tekduzen" ? "active" : ""}>
+          Tekduzen
+        </Link>
       </nav>
     </>
   );
