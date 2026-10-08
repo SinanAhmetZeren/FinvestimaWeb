@@ -6,7 +6,7 @@ import "../valuator-pro/styles.css";
 export default function ValuatorPro() {
   return (
     <div className="App">
-      <header className="App-header">
+      <header className="App-header" style={styles.header}>
         <div style={styles.pageWrap}>
           <TopBar />
           <ValuatorProEngine />
@@ -17,10 +17,17 @@ export default function ValuatorPro() {
 }
 
 const styles = {
+  header: {
+    height: "100vh",
+    minHeight: 0,
+    display: "block",
+    overflow: "hidden",
+  },
   pageWrap: {
     display: "flex",
     flexDirection: "column",
-    minHeight: "100vh",
+    height: "100%",
     width: "100%",
+    overflow: "hidden",
   },
 };

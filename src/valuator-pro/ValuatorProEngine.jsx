@@ -7,6 +7,7 @@ import { fetchFxSummary } from './engine/fxApi.js';
 import { defaultAssumptions, valuate, runRate } from './engine/valuation.js';
 import { runAudit } from './engine/audit.js';
 import { mUsd, pc } from './ui.jsx';
+import { RightColContext } from './rightColContext.js';
 import { L1Inputs, L2Mapping } from './layers/Inputs.jsx';
 import { L3Balance, L4Income } from './layers/Statements.jsx';
 import { L5Assumptions, L6Valuation, L7Audit } from './layers/Valuation.jsx';
@@ -32,6 +33,10 @@ export default function ValuatorProEngine(){
   const [layer, setLayer] = useState(() => { const s = load(); return (s.ledgers.length || s.pdfDocs.length) ? 'L3' : 'L1'; });
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [rightColEl, setRightColEl] = useState(null);
+  const [railOpen, setRailOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  useEffect(() => { if (rightColEl) rightColEl.scrollTop = 0; }, [layer, rightColEl]);
   const up = useCallback(patch => setSt(s => ({ ...s, ...(typeof patch==='function' ? patch(s) : patch) })), []);
   const saveT = useRef();
   useEffect(() => {
@@ -122,8 +127,10 @@ export default function ValuatorProEngine(){
   useEffect(() => { if (printing){ const t = setTimeout(()=>{ window.print(); setPrinting(false); }, 350); return ()=>clearTimeout(t); } }, [printing]);
 
   return (
+    <RightColContext.Provider value={rightColEl}>
     <div className={'app vp-root'+(printing?' printing':'')}>
-      <nav className="rail" aria-label="Katmanlar">
+      <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} aria-label={railOpen?'Sol paneli gizle':'Sol paneli göster'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
+      {railOpen && <nav className="rail" aria-label="Katmanlar">
         <div className="brand">
           <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="none" stroke="#B8862B" strokeWidth="1.5"/><path d="M7 8l6 11 6-11" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round"/></svg>
           <div><b>VALUATOR</b><span>Firma değerleme motoru</span></div>
@@ -142,7 +149,7 @@ export default function ValuatorProEngine(){
           <div className="flow"><span>Girdi</span><i/><span>İşlem</span><i/><span>Çıktı</span></div>
           <p>Dosyalar tarayıcınızda işlenir, sunucuya gönderilmez.</p>
         </div>
-      </nav>
+      </nav>}
 
       <div className="main">
         <header className="top">
@@ -157,9 +164,11 @@ export default function ValuatorProEngine(){
             <div className="hide-sm"><span className="hl">WACC</span><b>{pc(V.P.w)}</b></div>
           </div>}
         </header>
+        {/* Sol rail ile yinelendiği için kaldırıldı — silinmedi, gerekirse geri açılabilir.
         <div className="stepper" role="tablist">
           {LAYERS.map((l,i) => <span key={l.k} className="stepw">{i>0 && <span className="stepline"/>}<button role="tab" className={'step'+(done[l.k]?' done':'')} aria-current={layer===l.k} aria-selected={layer===l.k} onClick={()=>setLayer(l.k)}><i>{l.k}</i>{l.n}</button></span>)}
         </div>
+        */}
         <main className="work">
           {printing ? <PrintReport {...ctx} /> : (
             <>
@@ -174,7 +183,11 @@ export default function ValuatorProEngine(){
           )}
         </main>
       </div>
+
+      <button type="button" className={'rightColToggle'+(rightOpen?'':' collapsed')} aria-label={rightOpen?'Sağ paneli gizle':'Sağ paneli göster'} onClick={()=>setRightOpen(v=>!v)}>{rightOpen?'›':'‹'}</button>
+      <aside className={'rightCol'+(rightOpen?'':' collapsed')} aria-label="Sağ panel" ref={setRightColEl}></aside>
     </div>
+    </RightColContext.Provider>
   );
 }
 

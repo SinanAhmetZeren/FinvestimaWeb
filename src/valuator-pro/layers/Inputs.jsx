@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import { Panel, Seg, Toggle, Stat, Tag, Empty, nf, par } from '../ui.jsx';
+import { Panel, Seg, Toggle, Stat, Tag, Empty, nf, par, Insp } from '../ui.jsx';
 import { lineOf, accName, ACCOUNTS } from '../engine/accounts.js';
 import { MiniBars } from '../charts.jsx';
 
@@ -97,7 +97,7 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
       {st.log.length>0 && <Panel title="İşlem kaydı"><ol className="log">{st.log.map((l,i)=><li key={i}><time>{l.t}</time>{l.msg}</li>)}</ol></Panel>}
     </div>
 
-    <aside className="insp">
+    <Insp>
       <div className="ihead">Uyarlamalar <span>L1</span></div>
       <div className="iblk"><h4>Tanınan girdiler</h4>
         <dl className="defs">
@@ -114,7 +114,7 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
         <button className="ibtn warnb" onClick={reset}>Tümünü temizle</button>
       </div>
       <div className="inote">Proje bu tarayıcıda otomatik saklanır. Başka bir bilgisayarda devam etmek için dosyaya kaydedin.</div>
-    </aside>
+    </Insp>
   </>);
 }
 
@@ -183,7 +183,7 @@ export function L2Mapping({ st, up, ledgers, hist }){
       </Panel>}
     </div>
 
-    <aside className="insp">
+    <Insp>
       <div className="ihead">Uyarlamalar <span>L2</span></div>
       {L && h && <div className="iblk"><h4>{L.year} kontrolleri</h4>
         <div className="checks">
@@ -200,6 +200,6 @@ export function L2Mapping({ st, up, ledgers, hist }){
         <Toggle checked={onlyUn} onChange={setOnlyUn} title="Yalnız eşlenmeyenler" desc="Bilançoya bağlanmamış bakiyeli hesapları filtreler." />
       </div>
       <div className="inote">Eşleme Tekdüzen Hesap Planı'na göre yapılır. Şirkete özel kod açılmışsa bakiye eşlenmeyenler listesinde görünür ve bilanço farkı olarak raporlanır.</div>
-    </aside>
+    </Insp>
   </>);
 }

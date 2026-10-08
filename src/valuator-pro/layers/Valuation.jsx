@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Panel, Seg, Toggle, Tag, Empty, FinTable, NumField, nf, pc, mx, mUsd } from '../ui.jsx';
+import { Panel, Seg, Toggle, Tag, Empty, FinTable, NumField, nf, pc, mx, mUsd, Insp } from '../ui.jsx';
 import { RevenueChart, FootballField, Bridge } from '../charts.jsx';
 import { applyScenario, SECTOR_MULTIPLES, defaultAssumptions } from '../engine/valuation.js';
 import { cogsMix } from '../engine/statements.js';
@@ -72,7 +72,7 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
   const base = st.baseAsm || A;
   return (<>
     <div className="left">{body}</div>
-    <aside className="insp">
+    <Insp>
       <div className="ihead">Sürücüler <span>L5</span></div>
       <div className="iblk"><h4>Senaryo ve süre</h4>
         <Seg value={A.scenario} onChange={k=>up(s=>({ asm: applyScenario(s.asm, k, s.baseAsm) }))} options={[{v:'pess',l:'Kötümser'},{v:'base',l:'Baz'},{v:'opt',l:'İyimser'}]} />
@@ -94,7 +94,7 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
             onChange={v=>setA({ costs: { ...A.costs, [k]: { ...A.costs[k], e:v } } })} />))}
         <div className="ical"><span className="k">{B.year+A.N} FAVÖK marjı</span><span className="v">{pc(P.rows[P.rows.length-1].margin)}</span></div>
       </div>
-      <div className="iblk"><h4>Yatırım, sermaye, vergi</h4>
+      <div className="iblk iblk-left"><h4>Yatırım, sermaye, vergi</h4>
         <NumField label="Yatırım / ciro" value={A.capexPct} pct step={0.005} min={0} max={0.5} onChange={v=>setA({capexPct:v})} />
         <NumField label="NİS / ciro" value={A.nwcPct} pct step={0.01} min={-0.5} max={1} onChange={v=>setA({nwcPct:v})} />
         <NumField label="Yeni yatırım ömrü" value={A.daLife} step={1} digits={0} unit="yıl" min={2} max={50} onChange={v=>setA({daLife:v})} />
@@ -106,7 +106,7 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
         <button className="ibtn ghost" onClick={()=>{ const D = { ...defaultAssumptions(hist), _base: B.year }; up({ asm:D, baseAsm:D }); }}>Tarihsel verilerden yeniden kur</button>
       </div>
       <div className="inote">Varsayılanlar baz yılın gerçekleşmesidir; marj iyileşmesi kendiliğinden varsayılmaz. Hedef değiştirildiğinde sürücü sınaması tarihsel aralıkla karşılaştırır.</div>
-    </aside>
+    </Insp>
   </>);
 }
 
@@ -193,11 +193,11 @@ export function L6Valuation({ hist, st, up, V, print }){
   if (print) return <div className="left">{body}</div>;
   return (<>
     <div className="left">{body}</div>
-    <aside className="insp">
+    <Insp>
       <div className="ihead">Uyarlamalar <span>L6</span></div>
       <div className="ihero"><div className="big">{mUsd(V.eq)}</div><div className="lb">Ağırlıklı özkaynak değeri</div>
         <div className="sub">Firma değeri {mUsd(V.ev)}. Aralık {mUsd(Math.min(V.m1.eq,V.m2.eq,V.m3.eq))} – {mUsd(Math.max(V.m1.eq,V.m2.eq,V.m3.eq))}.</div></div>
-      <div className="iblk"><h4>İskonto oranı (WACC)</h4>
+      <div className="iblk iblk-left"><h4>İskonto oranı (WACC)</h4>
         <Toggle checked={A.wacc.manual} onChange={v=>setW({ manual:v, value: v ? W.built : A.wacc.value })} title="WACC'yi doğrudan gir" desc="Kapalıyken bileşenlerden hesaplanır." />
         {A.wacc.manual ? <NumField label="WACC" value={A.wacc.value} pct step={0.0025} min={0.01} max={0.6} onChange={v=>setW({value:v})} /> : (<>
           <NumField label="Risksiz faiz (USD)" value={A.wacc.rf} pct step={0.001} min={0} max={0.2} onChange={v=>setW({rf:v})} />
@@ -215,29 +215,29 @@ export function L6Valuation({ hist, st, up, V, print }){
             <span className="k tot">WACC</span><span className="v tot">{pc(W.value)}</span>
           </div></>)}
       </div>
-      <div className="iblk"><h4>Terminal değer</h4>
+      <div className="iblk iblk-left"><h4>Terminal değer</h4>
         <Seg small value={A.tvMethod} onChange={v=>setA({tvMethod:v})} options={[{v:'gordon',l:'Sürekli büyüme'},{v:'exit',l:'Çıkış çarpanı'}]} />
         {A.tvMethod==='gordon' ? <NumField label="Terminal büyüme" value={A.tg} pct step={0.0025} min={-0.05} max={0.1} onChange={v=>setA({tg:v})} />
           : <NumField label="Çıkış FAVÖK çarpanı" value={A.exitMult} step={0.25} digits={2} unit="x" min={1} max={30} onChange={v=>setA({exitMult:v})} />}
         <Toggle checked={A.midYear} onChange={v=>setA({midYear:v})} title="Yıl ortası iskonto" desc="Nakit akımlarının yıl içine yayıldığını varsayar." />
       </div>
-      <div className="iblk"><h4>Piyasa çarpanı</h4>
+      <div className="iblk iblk-left"><h4>Piyasa çarpanı</h4>
         <NumField label="EV / FAVÖK" value={A.mult.value} step={0.25} digits={2} unit="x" min={0.5} max={40} onChange={v=>setA({mult:{...A.mult, value:v}})} />
         <Seg small value={A.mult.basis} onChange={v=>setA({mult:{...A.mult, basis:v}})} options={[{v:'ltm',l:`${B.year} normalize`},{v:'fwd',l:`${B.year+1}T ileri`}]} />
         <NumField label="Likidite / ölçek iskontosu" value={A.mult.disc} pct step={0.05} min={0} max={0.9} onChange={v=>setA({mult:{...A.mult, disc:v}})} />
       </div>
-      <div className="iblk"><h4>Net aktifler</h4>
+      <div className="iblk iblk-left"><h4>Net aktifler</h4>
         <NumField label="Rayiç değer farkı (bin USD)" value={+A.na.uplift||0} step={100} digits={0} min={-1e9} max={1e9} hint="Arsa, bina ve makinelerin ekspertiz değeri ile defter değeri farkı" onChange={v=>setA({na:{...A.na, uplift:v}})} />
         <Toggle checked={A.na.excludeIntang} onChange={v=>setA({na:{...A.na, excludeIntang:v}})} title="Maddi olmayan varlıkları dışla" desc="Haklar ve özel maliyetler satın alma sonrası değerini koruyamayabilir." />
       </div>
-      <div className="iblk"><h4>Yöntem ağırlıkları</h4>
+      <div className="iblk iblk-left"><h4>Yöntem ağırlıkları</h4>
         <NumField label="İndirgenmiş nakit akımı" value={A.weights.dcf} pct step={0.05} min={0} max={1} onChange={v=>setA({weights:{...A.weights, dcf:v}})} />
         <NumField label="FAVÖK çarpanı" value={A.weights.mult} pct step={0.05} min={0} max={1} onChange={v=>setA({weights:{...A.weights, mult:v}})} />
         <NumField label="Net aktifler" value={A.weights.na} pct step={0.05} min={0} max={1} onChange={v=>setA({weights:{...A.weights, na:v}})} />
         {Math.abs(ws-1)>0.001 && <p className="muted small">Ağırlıklar toplamı {pc(ws,0)}; sonuç %100'e oranlanır.</p>}
       </div>
       <div className="inote">İskonto oranı tek başına en güçlü değişkendir. Bileşenlerine ayrılıp belgelenmesi müzakerede pozisyonu güçlendirir.</div>
-    </aside>
+    </Insp>
   </>);
 }
 
@@ -261,7 +261,7 @@ export function L7Audit({ hist, st, up, V, audit, print, setPrinting }){
   const score = audit.score;
   return (<>
     <div className="left">{body}</div>
-    <aside className="insp">
+    <Insp>
       <div className="ihead">Çıktı <span>L7</span></div>
       <div className="ihero"><div className="big">{score.toFixed(1).replace('.',',')} / 10</div><div className="lb">Koşullu güven skoru</div>
         <div className="meter"><i style={{width: (score*10)+'%'}} className={score>=7?'ok':score>=4?'wn':'er'} /></div>
@@ -275,6 +275,6 @@ export function L7Audit({ hist, st, up, V, audit, print, setPrinting }){
         <button className="ibtn ghost" onClick={()=>up({ closed: [] })}>Bulguları yeniden aç</button>
       </div>
       <div className="inote">Excel paketi bilanço, gelir tablosu, USD özet, projeksiyon, değerleme, varsayımlar ve denetim sayfalarını içerir. Kapatılan bulgular raporda düzeltme kaydı olarak görünür.</div>
-    </aside>
+    </Insp>
   </>);
 }

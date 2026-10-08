@@ -1,13 +1,19 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { updateAsLoggedOut } from "../slices/UserSlice";
 import "../siteNav.css";
 import logo from "../assets/finvestimaLogo.jpeg";
 
+const MOTOR_LINKS = [
+  { to: "/extract", label: "Extract" },
+  { to: "/valuator-pro", label: "Valuator Pro" },
+  { to: "/tekduzen", label: "Tekduzen" },
+];
+
 export default function SiteNav() {
   const [navOpen, setNavOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const location = useLocation();
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -27,32 +33,23 @@ export default function SiteNav() {
           ☰
         </button>
         <div className={"navlinks" + (navOpen ? " open" : "")} onClick={() => setNavOpen(false)}>
-          <Link to="/engine" className="motor-link">Motor</Link>
+          {MOTOR_LINKS.map((l) => (
+            <Link key={l.to} to={l.to} className={"motor-link" + (location.pathname === l.to ? " active" : "")}>
+              {l.label}
+            </Link>
+          ))}
           <a href="/#nasil">Nasıl çalışır</a>
           <a href="/#mercek">Üç mercek</a>
           <a href="/#denetim">Denetim</a>
           <a href="/#fiyat">Fiyatlandırma</a>
           <a href="/#sss">SSS</a>
-        </div>
-        <a className="btn sm" href="/#demo">
-          Ön tarama isteyin
-        </a>
-        {isLoggedIn && (
-          <div className="usermenu">
-            <button
-              className="burger usermenu-toggle"
-              aria-label="Hesap menüsü"
-              onClick={() => setUserMenuOpen((v) => !v)}
-            >
-              ☰
+          <a href="/#demo" className="cta-link">Ön tarama isteyin</a>
+          {isLoggedIn && (
+            <button type="button" className="navlink-btn" onClick={handleLogout}>
+              Log out
             </button>
-            {userMenuOpen && (
-              <div className="usermenu-dropdown" onClick={() => setUserMenuOpen(false)}>
-                <button onClick={handleLogout}>Log out</button>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </nav>
   );

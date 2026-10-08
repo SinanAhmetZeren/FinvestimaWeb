@@ -1,4 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { createPortal } from 'react-dom';
+import { RightColContext } from './rightColContext.js';
+
+// Renders a plain, flush (non-card) block into the page's fixed right column via a portal,
+// so each layer keeps computing/returning its own panel without knowing where it ends up.
+export function Insp({ children }){
+  const target = useContext(RightColContext);
+  const block = <div className="rightPanel">{children}</div>;
+  return target ? createPortal(block, target) : block;
+}
 
 export const nf = (x, d=0) => { if (x==null||!isFinite(x)) return '—'; const r = Math.abs(x) < 0.5*Math.pow(10,-d) ? 0 : Number(x); return r.toLocaleString('tr-TR',{minimumFractionDigits:d, maximumFractionDigits:d}); };
 export const par = (x, d=0) => (x==null||!isFinite(x)) ? '—' : x <= -0.5*Math.pow(10,-d) ? '('+nf(-x,d)+')' : nf(x,d);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Panel, Seg, Toggle, Tag, Empty, FinTable, nf, par, pc, mx, NumField } from '../ui.jsx';
+import { Panel, Seg, Toggle, Tag, Empty, FinTable, nf, par, pc, mx, NumField, Insp } from '../ui.jsx';
 import { RevenueChart, Bridge } from '../charts.jsx';
 import { contribution, LEVELS } from '../engine/contribution.js';
 
@@ -59,7 +59,7 @@ export function L3Balance({ hist, st, up, print }){
   if (print) return <div className="left">{body}</div>;
   return (<>
     <div className="left">{body}</div>
-    <aside className="insp">
+    <Insp>
       <div className="ihead">Uyarlamalar <span>L3</span></div>
       <div className="ihero"><div className="big">{nf(last.usd.ic/1000,2)} M$</div><div className="lb">{last.year} yatırılmış sermaye</div>
         <div className="sub">Özkaynak {nf(last.usd.equity/1000,2)} M$, net borç {nf(last.usd.netDebt/1000,2)} M$. Net aktifler değerleme aralığının tabanını oluşturur.</div></div>
@@ -75,7 +75,7 @@ export function L3Balance({ hist, st, up, print }){
         </div>
       </div>
       <div className="inote">Stok / ciro {pc(last.kpi.invS)}. {last.kpi.invS>0.2 ? <b>%20 hedefinin üzerinde; L5'te NİS oranını düşürmek nakit akımını doğrudan artırır.</b> : 'Hedef aralıkta.'}</div>
-    </aside>
+    </Insp>
   </>);
 }
 
@@ -171,7 +171,7 @@ export function L4Income({ hist, st, up, print }){
   const setAb = (id, p) => up(s => ({ addbacks: s.addbacks.map(a=>a.id===id?{...a,...p}:a) }));
   return (<>
     <div className="left">{body}</div>
-    <aside className="insp">
+    <Insp>
       <div className="ihead">Uyarlamalar <span>L4</span></div>
       <div className="iblk"><h4>Amortisman (bin TL)</h4>
         {hist.map(h => (
@@ -206,6 +206,6 @@ export function L4Income({ hist, st, up, print }){
           <NumField key={h.id} label={`${h.year} yıllıklandırma`} value={h.annualize} step={0.05} digits={2} unit="x" min={1} max={12} onChange={v=>up(s=>({annualize:{...s.annualize,[h.id]:v}}))} />))}
       </div>
       <div className="inote"><b>Taban:</b> üç yöntem de bu normalize FAVÖK'ten beslenir. Taban yanlışsa üç sonuç birden yanlış çıkar ve birbirini doğruluyor gibi görünür.</div>
-    </aside>
+    </Insp>
   </>);
 }
