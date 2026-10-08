@@ -1,5 +1,5 @@
 import { BS_ASSETS, BS_LIABS } from './accounts.js';
-import { sumBal, bal, flow, sumFlow, range, depreciationFromSub } from './ledger.js';
+import { sumBal, bal, sumFlow, range, depreciationFromSub } from './ledger.js';
 
 // Varsayılan USD/TRY kurları — kaynak Excel'deki "Aylık USD_TRY Kurlar" sayfası (2023–2026/07).
 // 2020–2022 değerleri yaklaşık değerlerdir; kullanmadan önce kontrol edin.

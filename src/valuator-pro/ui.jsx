@@ -36,7 +36,8 @@ export function Toggle({ checked, onChange, title, desc }){
 export function NumField({ label, value, onChange, step=0.005, pct=false, unit, min=-1e12, max=1e12, digits, hint }){
   const show = v => pct ? nf(v*100, digits ?? 1) : nf(v, digits ?? 2);
   const [txt, setTxt] = useState(show(value));
-  useEffect(()=>{ setTxt(show(value)); /* eslint-disable-next-line */ }, [value]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-sync display text only when the underlying value changes, not on every format-function identity change
+  useEffect(()=>{ setTxt(show(value)); }, [value]);
   const commit = s => {
     const n = parseFloat(String(s).replace(/\./g,'').replace(',','.'));
     if (isFinite(n)){ const v = pct ? n/100 : n; onChange(Math.min(max, Math.max(min, v))); } else setTxt(show(value));

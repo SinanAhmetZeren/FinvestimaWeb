@@ -3,6 +3,7 @@ import { buildLedger } from './engine/ledger.js';
 import { parseWorkbookFile } from './engine/parseExcel.js';
 import { parsePdfFile, ledgerFromItems } from './engine/parsePdf.js';
 import { buildHistory, DEFAULT_FX } from './engine/statements.js';
+import { fetchFxSummary } from './engine/fxApi.js';
 import { defaultAssumptions, valuate, runRate } from './engine/valuation.js';
 import { runAudit } from './engine/audit.js';
 import { mUsd, pc } from './ui.jsx';
@@ -24,9 +25,9 @@ const STORE = 'valuator-pro:v1';
 const EMPTY = { company:'', ledgers:[], pdfDocs:[], monthly:[], fx:{}, partnersAsDebt:true, fxInEbitda:false,
   daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[] };
 
-function load(){ try { const s = localStorage.getItem(STORE); return s ? { ...EMPTY, ...JSON.parse(s) } : EMPTY; } catch { return EMPTY; } }
+function load(){ try { const s = localStorage.getItem(STORE); return s ? { ...EMPTY, ...JSON.parse(s), fx:{} } : EMPTY; } catch { return EMPTY; } }
 
-export default function App(){
+export default function ValuatorProEngine(){
   const [st, setSt] = useState(load);
   const [layer, setLayer] = useState(() => { const s = load(); return (s.ledgers.length || s.pdfDocs.length) ? 'L3' : 'L1'; });
   const [busy, setBusy] = useState(false);
@@ -35,7 +36,7 @@ export default function App(){
   const saveT = useRef();
   useEffect(() => {
     clearTimeout(saveT.current);
-    saveT.current = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify(st)); } catch { /* depolama kotası dolu */ } }, 400);
+    saveT.current = setTimeout(() => { try { const { fx, ...rest } = st; localStorage.setItem(STORE, JSON.stringify(rest)); } catch { /* depolama kotası dolu */ } }, 400);
   }, [st]);
 
   const pdfLedgers = useMemo(() => st.pdfDocs.flatMap(d => {
@@ -51,7 +52,10 @@ export default function App(){
     return Object.values(by).sort((a,b)=>a.year-b.year);
   }, [rawLedgers]);
 
-  const fxTable = useMemo(() => { const o = {}; new Set([...Object.keys(DEFAULT_FX), ...Object.keys(st.fx)]).forEach(y => o[y] = { ...(DEFAULT_FX[y]||{}), ...(st.fx[y]||{}) }); return o; }, [st.fx]);
+  const [apiFx, setApiFx] = useState(null);
+  useEffect(() => { fetchFxSummary().then(setApiFx); }, []);
+  const fxBase = apiFx || DEFAULT_FX;
+  const fxTable = useMemo(() => { const o = {}; new Set([...Object.keys(fxBase), ...Object.keys(st.fx)]).forEach(y => o[y] = { ...(fxBase[y]||{}), ...(st.fx[y]||{}) }); return o; }, [fxBase, st.fx]);
   const hist = useMemo(() => ledgers.length ? buildHistory(ledgers, st) : [], // eslint-disable-next-line
     [ledgers, st.fx, st.partnersAsDebt, st.fxInEbitda, st.daOverride, st.annualize, st.addbacks]);
   const lastYear = hist.length ? hist[hist.length-1].year : null;
@@ -118,7 +122,7 @@ export default function App(){
   useEffect(() => { if (printing){ const t = setTimeout(()=>{ window.print(); setPrinting(false); }, 350); return ()=>clearTimeout(t); } }, [printing]);
 
   return (
-    <div className={'app'+(printing?' printing':'')}>
+    <div className={'app vp-root'+(printing?' printing':'')}>
       <nav className="rail" aria-label="Katmanlar">
         <div className="brand">
           <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="none" stroke="#B8862B" strokeWidth="1.5"/><path d="M7 8l6 11 6-11" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round"/></svg>

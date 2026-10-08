@@ -1,5 +1,7 @@
 import React from "react";
 import TopBar from "../components/TopBar";
+import ValuatorProEngine from "../valuator-pro/ValuatorProEngine.jsx";
+import "../valuator-pro/styles.css";
 
 export default function ValuatorPro() {
   return (
@@ -7,11 +9,7 @@ export default function ValuatorPro() {
       <header className="App-header">
         <div style={styles.pageWrap}>
           <TopBar />
-          <iframe
-            src="/valuator-pro/index.html"
-            title="Valuator Pro"
-            style={styles.frame}
-          />
+          <ValuatorProEngine />
         </div>
       </header>
     </div>
@@ -23,11 +21,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     minHeight: "100vh",
-    width: "100%",
-  },
-  frame: {
-    flex: 1,
-    border: "none",
     width: "100%",
   },
 };

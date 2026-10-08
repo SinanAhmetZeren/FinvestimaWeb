@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Panel, Seg, Toggle, Tag, Empty, FinTable, NumField, nf, par, pc, mx, mUsd } from '../ui.jsx';
+import { Panel, Seg, Toggle, Tag, Empty, FinTable, NumField, nf, pc, mx, mUsd } from '../ui.jsx';
 import { RevenueChart, FootballField, Bridge } from '../charts.jsx';
-import { applyScenario, waccCalc, SECTOR_MULTIPLES, defaultAssumptions } from '../engine/valuation.js';
+import { applyScenario, SECTOR_MULTIPLES, defaultAssumptions } from '../engine/valuation.js';
 import { cogsMix } from '../engine/statements.js';
 import { exportWorkbook } from '../engine/exportXlsx.js';
 

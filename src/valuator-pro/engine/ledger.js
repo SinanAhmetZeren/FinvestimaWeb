@@ -12,7 +12,7 @@ export function trNum(v){
   let s = String(v).trim();
   let neg = false;
   if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1,-1); }
-  s = s.replace(/[^\d,.\-]/g,'');
+  s = s.replace(/[^\d,.-]/g,'');
   if (s.startsWith('-')) { neg = !neg; s = s.slice(1); }
   if (s.includes(',') && s.includes('.')) {
     s = s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');

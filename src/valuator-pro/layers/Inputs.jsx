@@ -87,9 +87,9 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
           <thead><tr className="hd solo"><th className="lbl">Yıl</th><th className="n">Yıl ortalaması</th><th className="n">Yıl sonu</th><th>Not</th></tr></thead>
           <tbody>{fxYears.map(y => { const f = fxTable[y]||{}; return (
             <tr key={y}><td className="lbl">{y}</td>
-              <td className="n"><input className="ninp" defaultValue={f.avg ? nf(f.avg,4) : ''} key={'a'+y+f.avg} onBlur={e=>{ const v=parseFloat(e.target.value.replace(/\./g,'').replace(',','.')); if(v>0) setFx(y,'avg',v); }} /></td>
-              <td className="n"><input className="ninp" defaultValue={f.end ? nf(f.end,4) : ''} key={'e'+y+f.end} onBlur={e=>{ const v=parseFloat(e.target.value.replace(/\./g,'').replace(',','.')); if(v>0) setFx(y,'end',v); }} /></td>
-              <td>{st.fx[y] ? <Tag c="teal">kullanıcı</Tag> : f.approx ? <Tag c="gold">yaklaşık, kontrol edin</Tag> : f.partial ? <Tag c="gold">yıl içi</Tag> : f.avg ? <Tag>varsayılan</Tag> : <Tag c="red">kur girin</Tag>}</td>
+              <td className="n"><input className="ninp" defaultValue={f.avg != null ? nf(f.avg,4) : ''} key={'a'+y+f.avg} onBlur={e=>{ const v=parseFloat(e.target.value.replace(/\./g,'').replace(',','.')); if(v>0 && v!==f.avg) setFx(y,'avg',v); }} /></td>
+              <td className="n"><input className="ninp" defaultValue={f.end != null ? nf(f.end,4) : ''} key={'e'+y+f.end} onBlur={e=>{ const v=parseFloat(e.target.value.replace(/\./g,'').replace(',','.')); if(v>0 && v!==f.end) setFx(y,'end',v); }} /></td>
+              <td>{st.fx[y] ? <Tag c="teal">kullanıcı</Tag> : f.source==='error' ? <Tag c="red">kur çekilemedi</Tag> : f.approx ? <Tag c="gold">yaklaşık, kontrol edin</Tag> : f.source==='tcmb' ? (f.partial ? <Tag c="gold">TCMB, yıl içi</Tag> : <Tag c="green">TCMB</Tag>) : f.partial ? <Tag c="gold">yıl içi</Tag> : f.avg ? <Tag>varsayılan</Tag> : <Tag c="red">kur girin</Tag>}</td>
             </tr>); })}</tbody>
         </table></div>
       </Panel>

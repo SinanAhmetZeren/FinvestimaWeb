@@ -7,7 +7,7 @@ async function loadPdfjs(){
     pdfjsPromise = (async () => {
       // Ayrıştırma ana iş parçacığında yapılır: ayrı worker dosyası gerektirmez, her barındırmada çalışır.
       const worker = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs');
-      globalThis.pdfjsWorker = worker;
+      window.pdfjsWorker = worker;
       return await import('pdfjs-dist/legacy/build/pdf.min.mjs');
     })();
   }
@@ -78,7 +78,7 @@ export function parseStatementLines(lines, opts = {}){
     const nums = ln.text.match(NUM_RE) || [];
     const raw = ln.text.replace(NUM_RE,' ').replace(/\s+/g,' ').trim();
     const em = raw.match(/^\s*([IVX]+|[A-ZÇĞİÖŞÜ]|\d{1,2})[.)]\s+/);
-    const enumT = !em ? 'none' : /^[IVX]+$/.test(em[1]) && em[1].length>1 || em[1]==='I' && /VARLIK|KAYNAK/.test(fold(raw)) ? 'roman' : /^\d/.test(em[1]) ? 'num' : 'letter';
+    const enumT = !em ? 'none' : (/^[IVX]+$/.test(em[1]) && em[1].length>1) || (em[1]==='I' && /VARLIK|KAYNAK/.test(fold(raw))) ? 'roman' : /^\d/.test(em[1]) ? 'num' : 'letter';
     const label = em ? raw.slice(em[0].length).trim() : raw;
     const f = fold(label);
     let isSec = false;
@@ -101,7 +101,9 @@ export function parseStatementLines(lines, opts = {}){
     else if (!isSub){
       const best = pool => { let bc=null, bs=0; for (const c of pool){ const v = score(label, ACCOUNTS[c]); if (v>bs){ bs=v; bc=c; } } return [bc,bs]; };
       const all = Object.keys(ACCOUNTS).map(Number);
+      // eslint-disable-next-line no-loop-func -- `best` is called synchronously in this same iteration, never stored for later
       [code, sc] = tens ? best(all.filter(c=>Math.floor(c/10)===tens)) : [null,0];
+      // eslint-disable-next-line no-loop-func
       if (sc < 0.5) [code, sc] = best(all.filter(c=>Math.floor(c/100)===cls));
       if (sc < 0.5) code = null;
     }
