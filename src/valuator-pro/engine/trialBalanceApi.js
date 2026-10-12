@@ -54,6 +54,18 @@ export async function pollJob(jobId, { intervalMs = 1500, timeoutMs = 120000, on
   throw new Error('İşlem zaman aşımına uğradı.');
 }
 
+// Kullanıcının mizan ızgarasında elle düzelttiği bir hesabı kaydeder — eski satırın üzerine
+// yazmaz, yeni bir versiyon olarak eklenir (en son CreatedAt kazanır).
+export async function editTrialBalanceAccount({ valuationTaskId, year, code, name, debit, credit }){
+  const res = await fetch(`${API_URL}/api/ValuatorPro/trial-balance-accounts/manual-edit`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ valuationTaskId, year, code, name, debit, credit }),
+  });
+  if (!res.ok) throw new Error(`Kayıt başarısız (${res.status}).`);
+  return res.json();
+}
+
 export async function getValuationTask(valuationTaskId){
   const res = await fetch(`${API_URL}/api/ValuatorPro/valuation-tasks/${valuationTaskId}`, {
     headers: authHeaders(),

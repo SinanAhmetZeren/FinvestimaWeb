@@ -57,15 +57,17 @@ export function buildLedger(rows, meta = {}){
 }
 
 function merge(a, r){
-  if (!a) return {code:r.d.slice(0,3), name:r.name, dt:+r.dt||0, ct:+r.ct||0, db:+r.db||0, cb:+r.cb||0};
-  return {...a, dt:a.dt+(+r.dt||0), ct:a.ct+(+r.ct||0), db:a.db+(+r.db||0), cb:a.cb+(+r.cb||0)};
+  if (!a) return {code:r.d.slice(0,3), name:r.name, dt:+r.dt||0, ct:+r.ct||0, db:+r.db||0, cb:+r.cb||0, isManualOverride:!!r.isManualOverride};
+  return {...a, dt:a.dt+(+r.dt||0), ct:a.ct+(+r.ct||0), db:a.db+(+r.db||0), cb:a.cb+(+r.cb||0), isManualOverride:a.isManualOverride||!!r.isManualOverride};
 }
 
-export const bal = (L, code) => { const a=L.acc[String(code)]; return a ? (a.db - a.cb) : 0; };
+// Bakiye hep Borç-Alacak (dt-ct) farkından hesaplanır, ayrı db/cb (bakiye) alanından değil —
+// o alan kaynakta (Gemini ekstraksiyonunda) tutarsız gelebiliyor, dt/ct güvenilir.
+export const bal = (L, code) => { const a=L.acc[String(code)]; return a ? (a.dt - a.ct) : 0; };
 
 export function sumBal(L, from, to, ex = []){
   let s=0;
-  for (const k in L.acc){ const c=+k; if (c>=from && c<=to && !ex.includes(c)) s += L.acc[k].db - L.acc[k].cb; }
+  for (const k in L.acc){ const c=+k; if (c>=from && c<=to && !ex.includes(c)) s += L.acc[k].dt - L.acc[k].ct; }
   return s;
 }
 

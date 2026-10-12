@@ -123,7 +123,9 @@ export default function ValuatorProEngine(){
           await pollJob(jobId, { onTick: job => flashPoll(job.status) });
           const task = await getValuationTask(valuationTaskId);
           const newLedgers = task.years.map(y => buildLedger(
-            y.accounts.map(a => ({ code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:a.debitBalance, cb:a.creditBalance })),
+            // Bakiye (db/cb) backend'in debitBalance/creditBalance alanından değil, Debit-Credit
+            // farkından kendimiz hesaplanıyor — Gemini bu iki ayrı alanı tutarsız okuyabiliyor.
+            y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
             { year:y.year, months:y.months, source:'mizan', fileName:f.name, company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
           ));
           up(s => {
