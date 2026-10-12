@@ -1,6 +1,6 @@
 // Tekdüzen Hesap Planı (Turkish Uniform Chart of Accounts), raw text as copied from the
 // source document. Parsed below into structured rows for the Tekduzen table UI.
-export const bilanco_hesapları = `BİLANÇO HESAPLARI
+export const tekduzen_tum_hesaplar = `BİLANÇO HESAPLARI
 1. Dönen Varlıkları
 10. Hazır Değerler
 100. Kasa
@@ -362,4 +362,4 @@ function parseTekduzen(raw) {
   return rows;
 }
 
-export const tekduzenRows = parseTekduzen(bilanco_hesapları);
+export const tekduzenRows = parseTekduzen(tekduzen_tum_hesaplar);

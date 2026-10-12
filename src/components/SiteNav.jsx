@@ -6,7 +6,6 @@ import "../siteNav.css";
 import logo from "../assets/finvestimaLogo.jpeg";
 
 const MOTOR_LINKS = [
-  { to: "/extract", label: "Extract" },
   { to: "/valuator-pro", label: "Valuator Pro" },
   { to: "/tekduzen", label: "Tekduzen" },
 ];

@@ -5,7 +5,6 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import AuthPage from "./pages/AuthPage";
 import Dcf from "./pages/Dcf";
-import Extract from "./pages/Extract";
 import Valuator from "./pages/Valuator";
 import ValuatorPro from "./pages/ValuatorPro";
 import Tekduzen from "./pages/Tekduzen";
@@ -37,14 +36,6 @@ export default function App() {
           element={
             <PrivateRoute>
               <Dcf />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/extract"
-          element={
-            <PrivateRoute>
-              <Extract />
             </PrivateRoute>
           }
         />

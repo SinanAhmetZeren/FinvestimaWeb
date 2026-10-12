@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { buildLedger } from './engine/ledger.js';
 import { parseWorkbookFile } from './engine/parseExcel.js';
 import { parsePdfFile, ledgerFromItems } from './engine/parsePdf.js';
+import { uploadTrialBalance, pollJob, getValuationTask } from './engine/trialBalanceApi.js';
 import { buildHistory, DEFAULT_FX } from './engine/statements.js';
 import { fetchFxSummary } from './engine/fxApi.js';
 import { defaultAssumptions, valuate, runRate } from './engine/valuation.js';
@@ -24,14 +25,17 @@ const LAYERS = [
 
 const STORE = 'valuator-pro:v1';
 const EMPTY = { company:'', ledgers:[], pdfDocs:[], monthly:[], fx:{}, partnersAsDebt:true, fxInEbitda:false,
-  daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[] };
+  daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[], valuationTaskId:null, maxCodeDigits:null };
 
-function load(){ try { const s = localStorage.getItem(STORE); return s ? { ...EMPTY, ...JSON.parse(s), fx:{} } : EMPTY; } catch { return EMPTY; } }
+function load(){ try { const s = localStorage.getItem(STORE); return s ? { ...EMPTY, ...JSON.parse(s), fx:{}, maxCodeDigits:null } : EMPTY; } catch { return EMPTY; } }
 
 export default function ValuatorProEngine(){
   const [st, setSt] = useState(load);
   const [layer, setLayer] = useState(() => { const s = load(); return (s.ledgers.length || s.pdfDocs.length) ? 'L3' : 'L1'; });
   const [busy, setBusy] = useState(false);
+  const [uploadPoll, setUploadPoll] = useState(null); // { status, key } — Starting/Pending/Processing/Completed/Failed
+  const pollKeyRef = useRef(0);
+  const flashPoll = status => { pollKeyRef.current += 1; setUploadPoll({ status, key: pollKeyRef.current }); };
   const [printing, setPrinting] = useState(false);
   const [rightColEl, setRightColEl] = useState(null);
   const [railOpen, setRailOpen] = useState(true);
@@ -41,7 +45,7 @@ export default function ValuatorProEngine(){
   const saveT = useRef();
   useEffect(() => {
     clearTimeout(saveT.current);
-    saveT.current = setTimeout(() => { try { const { fx, ...rest } = st; localStorage.setItem(STORE, JSON.stringify(rest)); } catch { /* depolama kotası dolu */ } }, 400);
+    saveT.current = setTimeout(() => { try { const { fx, maxCodeDigits, ...rest } = st; localStorage.setItem(STORE, JSON.stringify(rest)); } catch { /* depolama kotası dolu */ } }, 400);
   }, [st]);
 
   const pdfLedgers = useMemo(() => st.pdfDocs.flatMap(d => {
@@ -86,6 +90,7 @@ export default function ValuatorProEngine(){
 
   const onFiles = async (files) => {
     setBusy(true);
+    setUploadPoll(null);
     for (const f of files){
       const ext = f.name.split('.').pop().toLowerCase();
       try {
@@ -95,7 +100,43 @@ export default function ValuatorProEngine(){
           up(s => ({ pdfDocs:[...s.pdfDocs, doc], company: s.company || r.company || '' }));
           const mapped = r.items.filter(i=>i.kind==='mapped').length, un = r.items.filter(i=>i.kind==='unmapped').length;
           log(`${f.name}: beyanname okundu, ${r.pages} sayfa, ${mapped} kalem eşlendi, ${un} kalem eşleme bekliyor${r.year?'':'; yıl bulunamadı, L1\'de girin'}.`);
-        } else if (['xlsx','xls','xlsm','csv','ods'].includes(ext)){
+        } else if (['xlsx','xls'].includes(ext)){
+          // Mizan artık tarayıcıda değil, backend'de Gemini ile çıkarılıyor (isimler/üçüncü
+          // taraf bilgisi dosyayı terk etmeden önce temizleniyor — bkz. MizanDepthFilter).
+          // Aylık satış raporu ve kur tablosu sayfaları için parseWorkbookFile hâlâ kullanılıyor,
+          // backend şu an sadece mizan'ı destekliyor.
+          const r = await parseWorkbookFile(f);
+          // [eski client-side mizan parsing — geri dönülebilir olsun diye silinmedi, yorum satırı]
+          // if (r.mizans.length) up(s => ({ ledgers: [...s.ledgers, ...r.mizans], company: s.company || r.mizans[0].company || '' }));
+          if (r.monthly.length) up(s => { const key = m => m.y*100+m.m; const mp = new Map(s.monthly.map(m=>[key(m),m])); r.monthly.forEach(m=>mp.set(key(m),m)); return { monthly:[...mp.values()].sort((a,b)=>key(a)-key(b)) }; });
+          if (r.fx) up(s => { const o = { ...s.fx }; for (const y in r.fx){ o[y] = { ...(o[y]||{}), ...(r.fx[y].avg?{avg:r.fx[y].avg}:{}), ...(r.fx[y].end?{end:r.fx[y].end}:{}) }; } return { fx:o }; });
+
+          flashPoll('Starting');
+          const { jobId, valuationTaskId } = await uploadTrialBalance(f, {
+            valuationTaskId: st.valuationTaskId,
+            companyName: st.company || undefined,
+            taskTitle: 'Değerleme',
+            maxCodeDigits: st.maxCodeDigits,
+          });
+          up({ valuationTaskId });
+          log(`${f.name}: Gemini ile mizan okunuyor…`);
+          await pollJob(jobId, { onTick: job => flashPoll(job.status) });
+          const task = await getValuationTask(valuationTaskId);
+          const newLedgers = task.years.map(y => buildLedger(
+            y.accounts.map(a => ({ code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:a.debitBalance, cb:a.creditBalance })),
+            { year:y.year, months:y.months, source:'mizan', fileName:f.name, company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
+          ));
+          up(s => {
+            const years = new Set(newLedgers.map(l=>l.year));
+            return { ledgers: [...s.ledgers.filter(l=>!years.has(l.year)), ...newLedgers], company: s.company || task.companyName || '' };
+          });
+
+          const parts = [];
+          parts.push(`${newLedgers.length} mizan (${newLedgers.map(l=>l.year||'yıl?').join(', ')})`);
+          if (r.monthly.length) parts.push(`${r.monthly.length} aylık satış satırı`);
+          if (r.fx) parts.push(`${Object.keys(r.fx).length} yıllık kur`);
+          log(`${f.name}: ${parts.join(', ')} okundu.`);
+        } else if (['xlsm','csv','ods'].includes(ext)){
           const r = await parseWorkbookFile(f);
           if (r.mizans.length) up(s => ({ ledgers: [...s.ledgers, ...r.mizans], company: s.company || r.mizans[0].company || '' }));
           if (r.monthly.length) up(s => { const key = m => m.y*100+m.m; const mp = new Map(s.monthly.map(m=>[key(m),m])); r.monthly.forEach(m=>mp.set(key(m),m)); return { monthly:[...mp.values()].sort((a,b)=>key(a)-key(b)) }; });
@@ -121,7 +162,7 @@ export default function ValuatorProEngine(){
   };
   const reset = () => { if (window.confirm('Tüm dosyalar ve varsayımlar silinsin mi?')) { setSt(EMPTY); setLayer('L1'); } };
 
-  const ctx = { st, setSt, up, hist, ledgers, rawLedgers, V, audit, fxTable, rr, onFiles, loadSample, reset, busy, setLayer, log, setPrinting };
+  const ctx = { st, setSt, up, hist, ledgers, rawLedgers, V, audit, fxTable, rr, onFiles, loadSample, reset, busy, setLayer, log, setPrinting, uploadPoll };
   const done = { L1: ledgers.length>0, L2: hist.length>0 && hist.every(h=>Math.abs(h.bs.check)<Math.max(1,h.bs.TA*0.0005)), L3: hist.length>0, L4: hist.length>0, L5: !!V, L6: !!V, L7: !!V && audit.findings.every(f=>f.closed||f.sev!=='crit') };
 
   useEffect(() => { if (printing){ const t = setTimeout(()=>{ window.print(); setPrinting(false); }, 350); return ()=>clearTimeout(t); } }, [printing]);
@@ -129,7 +170,6 @@ export default function ValuatorProEngine(){
   return (
     <RightColContext.Provider value={rightColEl}>
     <div className={'app vp-root'+(printing?' printing':'')}>
-      <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} aria-label={railOpen?'Sol paneli gizle':'Sol paneli göster'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
       {railOpen && <nav className="rail" aria-label="Katmanlar">
         <div className="brand">
           <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="none" stroke="#B8862B" strokeWidth="1.5"/><path d="M7 8l6 11 6-11" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round"/></svg>
@@ -147,9 +187,9 @@ export default function ValuatorProEngine(){
         </ol>
         <div className="rfoot">
           <div className="flow"><span>Girdi</span><i/><span>İşlem</span><i/><span>Çıktı</span></div>
-          <p>Dosyalar tarayıcınızda işlenir, sunucuya gönderilmez.</p>
         </div>
       </nav>}
+      <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} aria-label={railOpen?'Sol paneli gizle':'Sol paneli göster'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
 
       <div className="main">
         <header className="top">

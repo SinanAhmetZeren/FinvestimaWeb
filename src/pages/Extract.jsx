@@ -537,7 +537,7 @@ function YearsDropdown({ years, selected, onToggle }) {
 // before the document is sent to Gemini, so a printed logo/letterhead is never seen by the
 // model. Controlled by the parent (Extract): the parent's main button relabels itself to
 // "Process Document" and reads the current percentages when clicked — no buttons live here.
-function CropConfirmation({
+export function CropConfirmation({
   previewImageBase64,
   topPercent,
   bottomPercent,
@@ -549,6 +549,16 @@ function CropConfirmation({
   onViewPage,
   pagesInput,
   onChange,
+  title = "Sayfanın kenarlarını kırpmak için çizgilerin yerini ayarlayın.",
+  subtitlePrefix = "Sayfa seçimi yapmak istiyorsanız ",
+  subtitleCode = "1, 3, 5-7, 10-12",
+  subtitleSuffix = " formatında girebilirsiniz.",
+  pagesLabel = "Sayfalar",
+  pagesTotalLabel = "toplam",
+  allPagesLabel = "Tüm sayfalar",
+  customLabel = "Özel",
+  customPlaceholder = "örn. 1-3, 5",
+  midSlot = null,
 }) {
   const containerRef = useRef(null);
   const draggingRef = useRef(null); // "top" | "bottom" | "left" | "right" | null
@@ -611,64 +621,58 @@ function CropConfirmation({
   return (
     <div style={cropStyles.wrap}>
       <div style={cropStyles.header}>
-        <h4 style={cropStyles.title}>Confirm logo redaction</h4>
+        {title && <h2 style={cropStyles.title}>{title}</h2>}
         <p style={cropStyles.subtitle}>
-          Drag the lines so they sit just inside any logo on any edge of the page, then click "Process Document"
-          above. Everything in the shaded bands will be painted white before this document is sent for extraction.
+          {subtitlePrefix}
+          <code style={cropStyles.subtitleCode}>{subtitleCode}</code>
+          {subtitleSuffix}
         </p>
       </div>
 
       {pageCount > 1 && (
-        <div style={cropStyles.pageSelect}>
-          <div style={cropStyles.pageSelectTitle}>Pages ({pageCount} total)</div>
-          <label style={cropStyles.pageSelectRow}>
-            <input
-              type="radio"
-              checked={isAllPages}
-              onChange={() => onChange({ pagesInput: "" })}
-            />
-            All pages
-          </label>
-          <label style={cropStyles.pageSelectRow}>
-            <input
-              type="radio"
-              checked={!isAllPages}
-              onChange={() => onChange({ pagesInput: pagesInput || "1" })}
-            />
-            Custom
-            <input
-              type="text"
-              placeholder="e.g. 1-3, 5"
-              value={isAllPages ? "" : pagesInput}
-              onFocus={() => { if (isAllPages) onChange({ pagesInput: "1" }); }}
-              onChange={(e) => onChange({ pagesInput: e.target.value })}
-              style={cropStyles.pageSelectInput}
-            />
-          </label>
-        </div>
-      )}
-
-      {pageCount > 1 && (
-        <div style={cropStyles.pageNav}>
-          <button
-            type="button"
-            style={cropStyles.pageNavBtn}
-            onClick={() => onViewPage(previewPage - 1)}
-            disabled={previewPage <= 1 || isLoadingPreview}
-          >
-            ← Prev
-          </button>
-          <span style={cropStyles.pageNavLabel}>
-            Viewing page {previewPage} of {pageCount}
-          </span>
-          <button
-            type="button"
-            style={cropStyles.pageNavBtn}
-            onClick={() => onViewPage(previewPage + 1)}
-            disabled={previewPage >= pageCount || isLoadingPreview}
-          >
-            Next →
-          </button>
+        <div style={cropStyles.bar}>
+          <div style={cropStyles.seg}>
+            <button
+              type="button"
+              style={{ ...cropStyles.opt, ...(isAllPages ? cropStyles.optOn : {}) }}
+              onClick={() => onChange({ pagesInput: "" })}
+            >
+              {allPagesLabel}
+            </button>
+            <label style={{ ...cropStyles.opt, ...cropStyles.optCust, ...(!isAllPages ? cropStyles.optOn : {}) }}>
+              {customLabel}
+              <input
+                type="text"
+                placeholder={customPlaceholder}
+                value={isAllPages ? "" : pagesInput}
+                onFocus={() => { if (isAllPages) onChange({ pagesInput: "1" }); }}
+                onChange={(e) => onChange({ pagesInput: e.target.value })}
+                style={cropStyles.optInput}
+              />
+            </label>
+          </div>
+          {midSlot && <div style={cropStyles.midSlot}>{midSlot}</div>}
+          <div style={cropStyles.pager}>
+            <button
+              type="button"
+              style={{ ...cropStyles.nb, ...((previewPage <= 1 || isLoadingPreview) ? cropStyles.nbDisabled : {}) }}
+              onClick={() => onViewPage(previewPage - 1)}
+              disabled={previewPage <= 1 || isLoadingPreview}
+            >
+              ← Önceki
+            </button>
+            <span style={cropStyles.pg}>
+              <b>{previewPage}.</b> sayfa / {pageCount}
+            </span>
+            <button
+              type="button"
+              style={{ ...cropStyles.nb, ...((previewPage >= pageCount || isLoadingPreview) ? cropStyles.nbDisabled : {}) }}
+              onClick={() => onViewPage(previewPage + 1)}
+              disabled={previewPage >= pageCount || isLoadingPreview}
+            >
+              Sonraki →
+            </button>
+          </div>
         </div>
       )}
 
@@ -769,71 +773,124 @@ const cropStyles = {
     marginBottom: "14px",
   },
   title: {
-    fontSize: "15px",
-    fontWeight: 600,
+    fontSize: "17px",
+    fontWeight: 700,
+    letterSpacing: "-.01em",
     margin: 0,
     color: "var(--ink)",
+    textAlign: "center",
   },
   subtitle: {
-    fontSize: "12.5px",
-    color: "var(--ink-2)",
+    fontSize: "13.5px",
+    fontWeight: 500,
+    color: "var(--body, var(--ink-2))",
     marginTop: "4px",
-    maxWidth: "620px",
+    lineHeight: 1.5,
+    textAlign: "center",
   },
-  pageSelect: {
-    display: "flex",
-    alignItems: "center",
-    gap: "18px",
-    marginBottom: "14px",
-    padding: "10px 14px",
-    background: "var(--paper, #F5F8FB)",
-    border: "1px solid var(--rule, #E1E8F0)",
-    borderRadius: "4px",
-  },
-  pageSelectTitle: {
-    fontSize: "12px",
+  subtitleCode: {
+    fontFamily: "inherit",
     fontWeight: 600,
     color: "var(--ink)",
+    background: "#F1F3F6",
+    padding: "1px 6px",
+    borderRadius: "5px",
   },
-  pageSelectRow: {
-    display: "inline-flex",
+  bar: {
+    display: "flex",
     alignItems: "center",
-    gap: "6px",
-    fontSize: "13px",
-    color: "var(--ink-2)",
-    cursor: "pointer",
+    gap: "8px",
+    marginBottom: "14px",
+    flexWrap: "wrap",
+    width: "806px",
+    maxWidth: "100%",
+    margin: "0 auto 14px",
   },
-  pageSelectInput: {
+  seg: {
+    display: "flex",
+    gap: "8px",
+    flexShrink: 0,
+  },
+  opt: {
+    boxSizing: "border-box",
+    border: "1px solid var(--teal)",
+    background: "var(--teal)",
+    borderRadius: "5px",
     fontFamily: "inherit",
-    fontSize: "13px",
-    border: "1px solid var(--rule, #E1E8F0)",
-    borderRadius: "3px",
-    padding: "5px 8px",
-    width: "140px",
+    fontSize: "12px",
+    fontWeight: 500,
+    color: "#fff",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "7px 12px",
+    whiteSpace: "nowrap",
   },
-  pageNav: {
+  optOn: {
+    borderColor: "var(--teal-dk, #225F6B)",
+    background: "var(--teal-dk, #225F6B)",
+    color: "#fff",
+  },
+  optCust: {
+    padding: "3px 5px 3px 12px",
+  },
+  optInput: {
+    boxSizing: "border-box",
+    width: "120px",
+    height: "24px",
+    lineHeight: "24px",
+    border: "none",
+    borderRadius: "6px",
+    padding: "0 9px",
+    margin: 0,
+    alignSelf: "center",
+    fontSize: "13.5px",
+    color: "var(--ink)",
+    outline: "none",
+    background: "#F1F3F6",
+    fontFamily: "inherit",
+  },
+  midSlot: {
+    flex: 1,
+    display: "flex",
+    justifyContent: "center",
+  },
+  pager: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginLeft: "auto",
+  },
+  nb: {
+    boxSizing: "border-box",
+    border: "1px solid var(--teal)",
+    background: "var(--teal)",
+    borderRadius: "5px",
+    fontFamily: "inherit",
+    fontSize: "12px",
+    fontWeight: 500,
+    color: "#fff",
+    cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "16px",
-    marginBottom: "10px",
+    gap: "7px",
+    padding: "7px 12px",
   },
-  pageNavBtn: {
-    fontFamily: "inherit",
-    fontSize: "13px",
-    fontWeight: 600,
-    color: "var(--teal)",
-    background: "#fff",
-    border: "1px solid var(--teal)",
-    borderRadius: "3px",
-    padding: "6px 14px",
-    cursor: "pointer",
+  nbDisabled: {
+    background: "var(--line, #D9DEE6)",
+    borderColor: "var(--line, #D9DEE6)",
+    color: "#fff",
+    cursor: "not-allowed",
   },
-  pageNavLabel: {
-    fontSize: "13px",
-    color: "var(--ink-2)",
-    minWidth: "160px",
+  pg: {
+    fontSize: "14px",
+    fontWeight: 500,
+    color: "var(--body, var(--ink-2))",
+    minWidth: "86px",
     textAlign: "center",
+    whiteSpace: "nowrap",
   },
   imageWrap: {
     position: "relative",
