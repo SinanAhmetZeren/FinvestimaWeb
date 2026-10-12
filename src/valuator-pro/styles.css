@@ -45,3 +45,5 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeri
 .vp-root .railToggle:hover,.vp-root .railToggle:focus-visible{background:var(--mid);color:#fff;transition-delay:300ms}
 .vp-root .rightColToggle:hover,.vp-root .rightColToggle:focus-visible{background:var(--navy);color:#fff;transition-delay:300ms}
 .vp-root .rightCol.collapsed{flex:0 0 0;width:0;min-width:0;padding:0;border:0;overflow:hidden}
+.vp-root input.ninp[type=number]::-webkit-outer-spin-button,.vp-root input.ninp[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.vp-root input.ninp[type=number]{-moz-appearance:textfield}

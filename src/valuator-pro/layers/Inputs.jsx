@@ -161,29 +161,70 @@ export function L2Mapping({ st, up, ledgers, hist }){
   const [onlyUn, setOnlyUn] = useState(false);
   const [open, setOpen] = useState({});
   const [doc, setDoc] = useState(st.pdfDocs[0]?.id);
+  // Elle yapılan değişiklikler önce burada (taslak) bekler — localStorage/global state'e hiç
+  // dokunulmaz. "Kaydet" basılınca backend'e yazılır ve ledgers'a işlenir; "Geri al" taslağı siler.
+  const [pending, setPending] = useState({});
+  const [saving, setSaving] = useState(false);
   if (!ledgers.length && !st.pdfDocs.length) return <div className="left"><Empty title="Eşlenecek mizan yok">Önce L1'de dosya yükleyin.</Empty></div>;
   const L = ledgers[Math.min(yi, ledgers.length-1)];
   const h = hist.find(x=>x.id===L?.id);
-  const rows = L ? Object.values(L.acc).sort((a,b)=>a.code.localeCompare(b.code)).map(a => ({ ...a, map: lineOf(a.code), net: a.dt - a.ct })) : [];
+  const rows = L ? Object.values(L.acc).sort((a,b)=>a.code.localeCompare(b.code)).map(a => {
+    const p = pending[a.code];
+    const dt = p ? p.dt : a.dt, ct = p ? p.ct : a.ct;
+    return { ...a, dt, ct, map: lineOf(a.code), net: dt - ct, dirty: !!p };
+  }) : [];
   const unmapped = rows.filter(r => !r.map && Math.abs(r.net)>0.5);
   const classes = [['1','Dönen varlıklar'],['2','Duran varlıklar'],['3','Kısa vadeli yabancı kaynaklar'],['4','Uzun vadeli yabancı kaynaklar'],['5','Özkaynaklar'],['6','Gelir tablosu'],['7','Maliyet hesapları'],['8','Serbest'],['9','Nazım']];
   const D = st.pdfDocs.find(d=>d.id===doc) || st.pdfDocs[0];
   const setItem = (i, patch) => up(s => ({ pdfDocs: s.pdfDocs.map(d => d.id!==D.id ? d : { ...d, items: d.items.map((it,j)=> j!==i ? it : { ...it, ...patch, kind: (patch.code ?? it.code) ? 'mapped' : it.kind==='subtotal' ? 'subtotal' : 'unmapped' }) }) }));
   const swapCols = () => up(s => ({ pdfDocs: s.pdfDocs.map(d => d.id!==D.id ? d : { ...d, items: d.items.map(it => it.prev==null ? it : { ...it, cur: it.prev, prev: it.cur }) }) }));
 
-  // Hücre elle düzenlenince: önce ekranda hemen güncelle (optimistic), sonra backend'e yeni bir
-  // satır olarak yaz (eski satırın üzerine yazmaz — bkz. TrialBalanceAccount.CreatedAt).
-  const saveEdit = (code, name, dt, ct) => {
-    up(s => ({ ledgers: s.ledgers.map(l => l.id!==L.id ? l : { ...l, acc: { ...l.acc, [code]: { ...l.acc[code], dt, ct, db: Math.max(dt-ct,0), cb: Math.max(ct-dt,0), isManualOverride: true } } }) }));
-    if (st.valuationTaskId){
-      editTrialBalanceAccount({ valuationTaskId: st.valuationTaskId, year: L.year, code, name, debit: dt, credit: ct }).catch(console.error);
+  const editCell = (code, dt, ct) => setPending(p => ({ ...p, [code]: { dt, ct } }));
+  const revertChanges = () => setPending({});
+
+  const commitChanges = async () => {
+    const codes = Object.keys(pending);
+    if (!codes.length) return;
+    setSaving(true);
+    try {
+      for (const code of codes){
+        const acc = L.acc[code];
+        const { dt, ct } = pending[code];
+        if (st.valuationTaskId){
+          await editTrialBalanceAccount({ valuationTaskId: st.valuationTaskId, year: L.year, code, name: acc?.name || accName(code), debit: dt, credit: ct });
+        }
+      }
+      const applyPending = (acc) => {
+        const next = {};
+        for (const code in acc){
+          const a = acc[code], p = pending[code];
+          next[code] = p ? { ...a, dt:p.dt, ct:p.ct, db:Math.max(p.dt-p.ct,0), cb:Math.max(p.ct-p.dt,0), isManualOverride:true } : a;
+        }
+        return next;
+      };
+      up(s => {
+        const newLedgers = s.ledgers.map(l => l.id===L.id ? { ...l, acc: applyPending(l.acc) } : l);
+        return { ledgers: newLedgers };
+      });
+      setPending({});
+    } catch (e) {
+      console.error(e);
+      alert('Değişiklikler kaydedilemedi: ' + e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (<>
     <div className="left">
       {L && <Panel title="Mizan ızgarası" sub={`${L.fileName}, ${Object.keys(L.acc).length} ana hesap`} flush
-        right={<Seg small value={yi} onChange={setYi} options={ledgers.map((l,i)=>({ v:i, l:String(l.year) }))} />}>
+        right={<>
+          {Object.keys(pending).length>0 && <>
+            <button className="lnk wn" onClick={revertChanges} disabled={saving}>Değişiklikleri geri al</button>
+            <button className="btn" onClick={commitChanges} disabled={saving}>{saving ? 'Kaydediliyor…' : `Kaydet (${Object.keys(pending).length})`}</button>
+          </>}
+          <Seg small value={yi} onChange={i=>{ setYi(i); setPending({}); }} options={ledgers.map((l,i)=>({ v:i, l:String(l.year) }))} />
+        </>}>
         <div className="scroll tall"><table className="g">
           <thead><tr className="hd solo"><th className="lbl">Hesap</th><th>Tabloda karşılığı</th><th className="n">Borç toplamı</th><th className="n">Alacak toplamı</th><th className="n">Net bakiye</th></tr></thead>
           <tbody>
@@ -196,11 +237,11 @@ export function L2Mapping({ st, up, ledgers, hist }){
               return [
                 <tr key={c} className={'grp'+(isOpen?' open':'')} onClick={()=>setOpen(o=>({...o,[c]:!isOpen}))}><td className="lbl"><span className="caret">▸</span> {c} · {n}</td><td>{rs.length} hesap</td><td className="n">{nf(totDt/1000)}</td><td className="n">{nf(totCt/1000)}</td><td className="n">{par(tot/1000)}</td></tr>,
                 ...(isOpen ? rs.map(r => (
-                  <tr key={r.code} className="kid">
-                    <td className="lbl"><code>{r.code}</code> {r.name || accName(r.code)}{r.isManualOverride && <Tag c="gold">elle düzenlendi</Tag>}</td>
+                  <tr key={r.code} className={'kid'+(r.dirty?' warnrow':'')}>
+                    <td className="lbl"><code>{r.code}</code> {r.name || accName(r.code)}{r.isManualOverride && <Tag c="gold">elle düzenlendi</Tag>}{r.dirty && <Tag c="gold">kaydedilmedi</Tag>}</td>
                     <td>{r.map ? <span className="muted small">{r.map.line.n}</span> : Math.abs(r.net)>0.5 ? <Tag c="red">eşlenmedi</Tag> : '—'}</td>
-                    <td className="n"><input className="ninp" type="number" defaultValue={round2(r.dt/1000)} onBlur={e=>{ const v=(+e.target.value||0)*1000; if (v!==r.dt) saveEdit(r.code, r.name||accName(r.code), v, r.ct); }} /></td>
-                    <td className="n"><input className="ninp" type="number" defaultValue={round2(r.ct/1000)} onBlur={e=>{ const v=(+e.target.value||0)*1000; if (v!==r.ct) saveEdit(r.code, r.name||accName(r.code), r.dt, v); }} /></td>
+                    <td className="n"><input className="ninp" type="number" value={round2(r.dt/1000)} onChange={e=>editCell(r.code, (+e.target.value||0)*1000, r.ct)} /></td>
+                    <td className="n"><input className="ninp" type="number" value={round2(r.ct/1000)} onChange={e=>editCell(r.code, r.dt, (+e.target.value||0)*1000)} /></td>
                     <td className={'n'+(r.net<0?' neg':'')}>{par(r.net/1000)}</td>
                   </tr>)) : [])
               ];

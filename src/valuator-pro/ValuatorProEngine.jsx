@@ -91,6 +91,10 @@ export default function ValuatorProEngine(){
   const onFiles = async (files) => {
     setBusy(true);
     setUploadPoll(null);
+    // Döngüde st.valuationTaskId kullanılamaz — React state'i senkron güncellenmediği için
+    // 2. ve 3. dosya hâlâ eski (bayat) değeri görür, bu da her dosya için ayrı bir task
+    // açılmasına yol açar. Bunun yerine döngü boyunca güncel id'yi burada takip ediyoruz.
+    let currentTaskId = st.valuationTaskId;
     for (const f of files){
       const ext = f.name.split('.').pop().toLowerCase();
       try {
@@ -113,11 +117,12 @@ export default function ValuatorProEngine(){
 
           flashPoll('Starting');
           const { jobId, valuationTaskId } = await uploadTrialBalance(f, {
-            valuationTaskId: st.valuationTaskId,
+            valuationTaskId: currentTaskId,
             companyName: st.company || undefined,
             taskTitle: 'Değerleme',
             maxCodeDigits: st.maxCodeDigits,
           });
+          currentTaskId = valuationTaskId;
           up({ valuationTaskId });
           log(`${f.name}: Gemini ile mizan okunuyor…`);
           await pollJob(jobId, { onTick: job => flashPoll(job.status) });
