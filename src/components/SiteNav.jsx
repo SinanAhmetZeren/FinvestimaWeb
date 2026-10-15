@@ -7,7 +7,6 @@ import logo from "../assets/finvestimaLogo.jpeg";
 
 const MOTOR_LINKS = [
   { to: "/valuator-pro", label: "Valuator Pro" },
-  { to: "/tekduzen", label: "Tekduzen" },
 ];
 
 export default function SiteNav() {

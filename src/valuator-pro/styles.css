@@ -41,9 +41,23 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeri
 .vp-root .stepw,.vp-root .stepper{box-sizing:border-box}
 
 .vp-root .app{position:relative}
-.vp-root .railToggle,.vp-root .rightColToggle{flex:0 0 20px;align-self:stretch;width:20px;border:0;background:transparent;color:transparent;font-size:11px;cursor:pointer;z-index:80;display:flex;align-items:center;justify-content:center;padding:0;transition:background-color .12s,color .12s}
+.vp-root .railToggle,.vp-root .rightColToggle{position:absolute;top:0;bottom:0;width:20px;border:0;background:transparent;color:transparent;font-size:11px;cursor:pointer;z-index:80;display:flex;align-items:center;justify-content:center;padding:0;transition:background-color .12s,color .12s}
 .vp-root .railToggle:hover,.vp-root .railToggle:focus-visible{background:var(--mid);color:#fff;transition-delay:300ms}
 .vp-root .rightColToggle:hover,.vp-root .rightColToggle:focus-visible{background:var(--navy);color:#fff;transition-delay:300ms}
 .vp-root .rightCol.collapsed{flex:0 0 0;width:0;min-width:0;padding:0;border:0;overflow:hidden}
 .vp-root input.ninp[type=number]::-webkit-outer-spin-button,.vp-root input.ninp[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .vp-root input.ninp[type=number]{-moz-appearance:textfield}
+.vp-root .taskgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.vp-root .taskcard{text-align:left;background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.vp-root .taskcard:hover{border-color:var(--mid);box-shadow:0 2px 8px rgba(20,32,60,.06)}
+.vp-root .taskcard.sel{border-color:var(--teal);background:var(--hair)}
+.vp-root .taskcard .tc-co{font-size:13.5px;font-weight:600;color:var(--navy)}
+.vp-root .taskcard .tc-ti{font-size:11.5px;color:var(--muted)}
+.vp-root .taskcard .tc-go{margin-top:8px;font-size:11px;font-weight:600;color:var(--teal)}
+.vp-root .mizanhead{display:flex;align-items:center;gap:12px;width:100%;padding:9px 13px;border-bottom:1px solid var(--line);background:linear-gradient(#FDFEFF,#F7F9FD)}
+.vp-root .mizanhead-l{flex:0 0 260px;min-width:0;text-align:left;display:flex;flex-direction:column}
+.vp-root .mizanhead-l h2{margin:0;font-size:12.5px;font-weight:600}
+.vp-root .mizanhead-l .sub{font-size:10.5px;color:var(--faint)}
+.vp-root .mizanhead-c{flex:1;display:flex;align-items:center;justify-content:center}
+.vp-root .mizanhead-c .ov-count{border:1px solid transparent;border-radius:5px;padding:4px 8px;font-size:10.5px;font-weight:500;color:var(--muted);cursor:default;line-height:1.45}
+.vp-root .mizanhead-r{flex:0 0 260px;display:flex;justify-content:flex-end}

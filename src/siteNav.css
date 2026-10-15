@@ -38,7 +38,7 @@
     flex-direction:column;padding:18px 24px;border-bottom:1px solid var(--line);gap:16px}
 }
 
-.site-nav .navlinks a.motor-link.active{text-decoration:underline;text-underline-offset:3px}
+.site-nav .navlinks a.motor-link.active{text-decoration:none}
 .site-nav .navlinks a.cta-link{background:var(--navy);color:#fff;border-radius:9px;padding:8px 15px;font-size:13.5px;font-weight:600}
 .site-nav .navlinks a.cta-link:hover{color:#fff;opacity:.9}
 

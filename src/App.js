@@ -7,6 +7,7 @@ import AuthPage from "./pages/AuthPage";
 import Dcf from "./pages/Dcf";
 import Valuator from "./pages/Valuator";
 import ValuatorPro from "./pages/ValuatorPro";
+import ValuatorProAdmin from "./pages/ValuatorProAdmin";
 import Tekduzen from "./pages/Tekduzen";
 import Landing from "./pages/Landing";
 import Motor from "./pages/Motor";
@@ -14,6 +15,14 @@ import Motor from "./pages/Motor";
 function PrivateRoute({ children }) {
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
   return isLoggedIn ? children : <Navigate to="/login" replace />;
+}
+
+function AdminRoute({ children }) {
+  const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
+  const isAdmin = useSelector((state) => state.users.isAdmin);
+  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/valuator-pro" replace />;
+  return children;
 }
 
 export default function App() {
@@ -53,6 +62,14 @@ export default function App() {
             <PrivateRoute>
               <ValuatorPro />
             </PrivateRoute>
+          }
+        />
+        <Route
+          path="/valuator-pro-admin"
+          element={
+            <AdminRoute>
+              <ValuatorProAdmin />
+            </AdminRoute>
           }
         />
         <Route

@@ -2,18 +2,19 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { buildLedger } from './engine/ledger.js';
 import { parseWorkbookFile } from './engine/parseExcel.js';
 import { parsePdfFile, ledgerFromItems } from './engine/parsePdf.js';
-import { uploadTrialBalance, pollJob, getValuationTask } from './engine/trialBalanceApi.js';
+import { useUploadTrialBalanceMutation, useLazyGetUploadJobQuery, useLazyGetValuationTaskQuery } from '../slices/ValuatorProSlice.js';
 import { buildHistory, DEFAULT_FX } from './engine/statements.js';
 import { fetchFxSummary } from './engine/fxApi.js';
 import { defaultAssumptions, valuate, runRate } from './engine/valuation.js';
 import { runAudit } from './engine/audit.js';
 import { mUsd, pc } from './ui.jsx';
 import { RightColContext } from './rightColContext.js';
-import { L1Inputs, L2Mapping } from './layers/Inputs.jsx';
+import { L0Tasks, L1Inputs, L2Mapping } from './layers/Inputs.jsx';
 import { L3Balance, L4Income } from './layers/Statements.jsx';
 import { L5Assumptions, L6Valuation, L7Audit } from './layers/Valuation.jsx';
 
 const LAYERS = [
+  { k:'L0', n:'İşler', m:'Değerleme seçimi' },
   { k:'L1', n:'Girdiler', m:'Dosya alımı, kurlar' },
   { k:'L2', n:'Mizan ve eşleme', m:'Hesap planı kontrolü' },
   { k:'L3', n:'Bilanço özetleri', m:'TL, USD, oranlar' },
@@ -23,15 +24,19 @@ const LAYERS = [
   { k:'L7', n:'Denetim ve çıktı', m:'Bulgular, rapor' },
 ];
 
-const STORE = 'valuator-pro:v1';
 const EMPTY = { company:'', ledgers:[], pdfDocs:[], monthly:[], fx:{}, partnersAsDebt:true, fxInEbitda:false,
   daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[], valuationTaskId:null, maxCodeDigits:null };
 
-function load(){ try { const s = localStorage.getItem(STORE); return s ? { ...EMPTY, ...JSON.parse(s), fx:{}, maxCodeDigits:null } : EMPTY; } catch { return EMPTY; } }
-
 export default function ValuatorProEngine(){
-  const [st, setSt] = useState(load);
-  const [layer, setLayer] = useState(() => { const s = load(); return (s.ledgers.length || s.pdfDocs.length) ? 'L3' : 'L1'; });
+  const [uploadTrialBalance] = useUploadTrialBalanceMutation();
+  const [fetchUploadJob] = useLazyGetUploadJobQuery();
+  const [fetchValuationTask] = useLazyGetValuationTaskQuery();
+  // Veri DB'den geliyor (L0'da task seçilince taze çekilir) — localStorage'da ayrıca
+  // saklamıyoruz, her girişte sıfırdan başlanır, bayat/çelişkili veri görünmesin diye.
+  const [st, setSt] = useState(EMPTY);
+  // Her açılışta L0'dan başlanır — kullanıcı kendisine atanmış task'lardan birini seçene kadar
+  // L1+'a geçilmez. Admin task açtığı için burada "yeni task" seçeneği yok, sadece seçim var.
+  const [layer, setLayer] = useState('L0');
   const [busy, setBusy] = useState(false);
   const [uploadPoll, setUploadPoll] = useState(null); // { status, key } — Starting/Pending/Processing/Completed/Failed
   const pollKeyRef = useRef(0);
@@ -42,11 +47,6 @@ export default function ValuatorProEngine(){
   const [rightOpen, setRightOpen] = useState(true);
   useEffect(() => { if (rightColEl) rightColEl.scrollTop = 0; }, [layer, rightColEl]);
   const up = useCallback(patch => setSt(s => ({ ...s, ...(typeof patch==='function' ? patch(s) : patch) })), []);
-  const saveT = useRef();
-  useEffect(() => {
-    clearTimeout(saveT.current);
-    saveT.current = setTimeout(() => { try { const { fx, maxCodeDigits, ...rest } = st; localStorage.setItem(STORE, JSON.stringify(rest)); } catch { /* depolama kotası dolu */ } }, 400);
-  }, [st]);
 
   const pdfLedgers = useMemo(() => st.pdfDocs.flatMap(d => {
     const out = [ledgerFromItems(d.items, { year:d.year, which:'cur', fileName:d.fileName, id:d.id+'c' })];
@@ -64,7 +64,7 @@ export default function ValuatorProEngine(){
   const [apiFx, setApiFx] = useState(null);
   useEffect(() => { fetchFxSummary().then(setApiFx); }, []);
   const fxBase = apiFx || DEFAULT_FX;
-  const fxTable = useMemo(() => { const o = {}; new Set([...Object.keys(fxBase), ...Object.keys(st.fx)]).forEach(y => o[y] = { ...(fxBase[y]||{}), ...(st.fx[y]||{}) }); return o; }, [fxBase, st.fx]);
+  const fxTable = useMemo(() => { const o = {}; new Set([...Object.keys(fxBase), ...Object.keys(st.fx)]).forEach(y => o[y] = { ...(st.fx[y]||{}), ...(fxBase[y]||{}) }); return o; }, [fxBase, st.fx]);
   const hist = useMemo(() => ledgers.length ? buildHistory(ledgers, st) : [], // eslint-disable-next-line
     [ledgers, st.fx, st.partnersAsDebt, st.fxInEbitda, st.daOverride, st.annualize, st.addbacks]);
   const lastYear = hist.length ? hist[hist.length-1].year : null;
@@ -87,6 +87,34 @@ export default function ValuatorProEngine(){
   }, [hist, rawLedgers, st, V]);
 
   const log = msg => up(s => ({ log: [{ t: new Date().toLocaleTimeString('tr-TR'), msg }, ...s.log].slice(0,40) }));
+
+  // jobId'yi Completed/Failed olana kadar poll eder; her denemede onTick(job) çağrılır (ilk
+  // deneme dahil) ki UI canlı durumu (Pending/Processing/...) yansıtabilsin.
+  const pollUploadJob = async (jobId, onTick, { intervalMs = 1500, timeoutMs = 120000 } = {}) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs){
+      const job = await fetchUploadJob(jobId).unwrap();
+      onTick?.(job);
+      if (job.status === 'Completed') return job;
+      if (job.status === 'Failed') throw new Error(job.errorMessage || 'Gemini işlemi başarısız oldu.');
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    throw new Error('İşlem zaman aşımına uğradı.');
+  };
+
+  // Müşteri kendisi task açmaz — admin ödeme teyidinden sonra açar. L0'da kullanıcı kendisine
+  // atanmış task'lardan birini seçince burası çalışır.
+  const selectTask = async (t) => {
+    setUploadPoll(null);
+    up({ valuationTaskId: t.id, company: t.companyName, ledgers: [], pdfDocs: [], log: [] });
+    const task = await fetchValuationTask(t.id).unwrap();
+    const newLedgers = task.years.map(y => buildLedger(
+      y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
+      { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
+    ));
+    if (newLedgers.length) up(s => ({ ledgers: newLedgers }));
+    setLayer('L1');
+  };
 
   const onFiles = async (files) => {
     setBusy(true);
@@ -115,31 +143,38 @@ export default function ValuatorProEngine(){
           if (r.monthly.length) up(s => { const key = m => m.y*100+m.m; const mp = new Map(s.monthly.map(m=>[key(m),m])); r.monthly.forEach(m=>mp.set(key(m),m)); return { monthly:[...mp.values()].sort((a,b)=>key(a)-key(b)) }; });
           if (r.fx) up(s => { const o = { ...s.fx }; for (const y in r.fx){ o[y] = { ...(o[y]||{}), ...(r.fx[y].avg?{avg:r.fx[y].avg}:{}), ...(r.fx[y].end?{end:r.fx[y].end}:{}) }; } return { fx:o }; });
 
+          if (!currentTaskId){
+            log(`${f.name}: önce L0'dan bir iş seçmelisiniz.`);
+            continue;
+          }
           flashPoll('Starting');
-          const { jobId, valuationTaskId } = await uploadTrialBalance(f, {
+          const { jobId, valuationTaskId } = await uploadTrialBalance({
+            file: f,
             valuationTaskId: currentTaskId,
             companyName: st.company || undefined,
             taskTitle: 'Değerleme',
             maxCodeDigits: st.maxCodeDigits,
-          });
+          }).unwrap();
           currentTaskId = valuationTaskId;
           up({ valuationTaskId });
           log(`${f.name}: Gemini ile mizan okunuyor…`);
-          await pollJob(jobId, { onTick: job => flashPoll(job.status) });
-          const task = await getValuationTask(valuationTaskId);
+          const completedJob = await pollUploadJob(jobId, job => flashPoll(job.status));
+          const thisJobYears = new Set((completedJob.result?.years || []).map(y => y.year));
+          const task = await fetchValuationTask(valuationTaskId).unwrap();
           const newLedgers = task.years.map(y => buildLedger(
             // Bakiye (db/cb) backend'in debitBalance/creditBalance alanından değil, Debit-Credit
             // farkından kendimiz hesaplanıyor — Gemini bu iki ayrı alanı tutarsız okuyabiliyor.
             y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
-            { year:y.year, months:y.months, source:'mizan', fileName:f.name, company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
+            { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
           ));
           up(s => {
             const years = new Set(newLedgers.map(l=>l.year));
             return { ledgers: [...s.ledgers.filter(l=>!years.has(l.year)), ...newLedgers], company: s.company || task.companyName || '' };
           });
 
+          const touchedLedgers = newLedgers.filter(l => thisJobYears.has(l.year));
           const parts = [];
-          parts.push(`${newLedgers.length} mizan (${newLedgers.map(l=>l.year||'yıl?').join(', ')})`);
+          parts.push(`${touchedLedgers.length} mizan (${touchedLedgers.map(l=>l.year||'yıl?').join(', ')})`);
           if (r.monthly.length) parts.push(`${r.monthly.length} aylık satış satırı`);
           if (r.fx) parts.push(`${Object.keys(r.fx).length} yıllık kur`);
           log(`${f.name}: ${parts.join(', ')} okundu.`);
@@ -167,9 +202,9 @@ export default function ValuatorProEngine(){
       log:[{ t:new Date().toLocaleTimeString('tr-TR'), msg:'Örnek vaka yüklendi: 2023–2025 mizanları ve 2023–2026/06 aylık satış raporu.' }] });
     setLayer('L3');
   };
-  const reset = () => { if (window.confirm('Tüm dosyalar ve varsayımlar silinsin mi?')) { setSt(EMPTY); setLayer('L1'); } };
+  const reset = () => { if (window.confirm('Tüm dosyalar ve varsayımlar silinsin mi?')) { setUploadPoll(null); setSt(EMPTY); setLayer('L0'); } };
 
-  const ctx = { st, setSt, up, hist, ledgers, rawLedgers, V, audit, fxTable, rr, onFiles, loadSample, reset, busy, setLayer, log, setPrinting, uploadPoll };
+  const ctx = { st, setSt, up, hist, ledgers, rawLedgers, V, audit, fxTable, rr, onFiles, loadSample, reset, busy, setLayer, log, setPrinting, uploadPoll, selectTask };
   const done = { L1: ledgers.length>0, L2: hist.length>0 && hist.every(h=>Math.abs(h.bs.check)<Math.max(1,h.bs.TA*0.0005)), L3: hist.length>0, L4: hist.length>0, L5: !!V, L6: !!V, L7: !!V && audit.findings.every(f=>f.closed||f.sev!=='crit') };
 
   useEffect(() => { if (printing){ const t = setTimeout(()=>{ window.print(); setPrinting(false); }, 350); return ()=>clearTimeout(t); } }, [printing]);
@@ -196,13 +231,13 @@ export default function ValuatorProEngine(){
           <div className="flow"><span>Girdi</span><i/><span>İşlem</span><i/><span>Çıktı</span></div>
         </div>
       </nav>}
-      <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} aria-label={railOpen?'Sol paneli gizle':'Sol paneli göster'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
+      <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} style={{ left: railOpen ? 'var(--rail)' : 0 }} aria-label={railOpen?'Sol paneli gizle':'Sol paneli göster'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
 
       <div className="main">
         <header className="top">
           <div className="case">
-            <input className="cname" value={st.company} placeholder="Şirket adı" onChange={e=>up({company:e.target.value})} aria-label="Şirket adı" />
-            <span className="cmeta">{hist.length ? `${hist[0].year}–${hist[hist.length-1].year} tarihsel, USD '000` : 'Henüz veri yüklenmedi'}</span>
+            {layer!=='L0' && <input className="cname" value={st.company} placeholder="Şirket adı" onChange={e=>up({company:e.target.value})} aria-label="Şirket adı" />}
+            {layer!=='L0' && <span className="cmeta">{hist.length ? `${hist[0].year}–${hist[hist.length-1].year} tarihsel, USD '000` : 'Henüz veri yüklenmedi'}</span>}
           </div>
           {V && <div className="headline">
             <div><span className="hl">Firma değeri</span><b>{mUsd(V.ev)}</b></div>
@@ -219,6 +254,7 @@ export default function ValuatorProEngine(){
         <main className="work">
           {printing ? <PrintReport {...ctx} /> : (
             <>
+              {layer==='L0' && <L0Tasks {...ctx} />}
               {layer==='L1' && <L1Inputs {...ctx} />}
               {layer==='L2' && <L2Mapping {...ctx} />}
               {layer==='L3' && <L3Balance {...ctx} />}
@@ -231,7 +267,7 @@ export default function ValuatorProEngine(){
         </main>
       </div>
 
-      <button type="button" className={'rightColToggle'+(rightOpen?'':' collapsed')} aria-label={rightOpen?'Sağ paneli gizle':'Sağ paneli göster'} onClick={()=>setRightOpen(v=>!v)}>{rightOpen?'›':'‹'}</button>
+      <button type="button" className={'rightColToggle'+(rightOpen?'':' collapsed')} style={{ right: rightOpen ? 'var(--insp)' : 0 }} aria-label={rightOpen?'Sağ paneli gizle':'Sağ paneli göster'} onClick={()=>setRightOpen(v=>!v)}>{rightOpen?'›':'‹'}</button>
       <aside className={'rightCol'+(rightOpen?'':' collapsed')} aria-label="Sağ panel" ref={setRightColEl}></aside>
     </div>
     </RightColContext.Provider>

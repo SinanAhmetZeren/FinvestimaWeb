@@ -11,7 +11,7 @@ import { CropConfirmation } from '../../pages/Extract.jsx';
 function canvasToBase64(canvas) { return canvas.toDataURL('image/png').split(',')[1]; }
 const POLL_INTERVAL_MS = 2000;
 
-export function PdfUpload({ up, log }) {
+export function PdfUpload({ up, log, valuationTaskId }) {
   const [startExtractionJob] = useStartExtractionJobMutation();
   const [fetchJob] = useLazyGetExtractionJobQuery();
   const [file, setFile] = useState(null);
@@ -124,7 +124,7 @@ export function PdfUpload({ up, log }) {
     const { topPercent, bottomPercent, leftPercent, rightPercent, pagesInput } = cropState;
     setCropState(null);
     try {
-      const { jobId } = await startExtractionJob({ file, topPercent, bottomPercent, leftPercent, rightPercent, pages: pagesInput || null }).unwrap();
+      const { jobId } = await startExtractionJob({ file, topPercent, bottomPercent, leftPercent, rightPercent, pages: pagesInput || null, valuationTaskId }).unwrap();
       pollTimeoutRef.current = setTimeout(() => pollJob(jobId, file.name), POLL_INTERVAL_MS);
     } catch (e) {
       console.error(e);

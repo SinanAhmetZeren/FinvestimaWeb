@@ -11,7 +11,13 @@ const COSTS = [['mat','Malzeme'],['lab','Direkt işçilik'],['ovh','Genel üreti
 export function L5Assumptions({ hist, st, up, V, rr, print }){
   if (!hist.length || !st.asm || !V) return noVal;
   const A = st.asm, P = V.P, B = V.B;
-  const setA = p => up(s => ({ asm: { ...s.asm, ...p, scenario: p.scenario ?? 'custom' } }));
+  const setA = p => up(s => {
+    const next = { ...s.asm, ...p };
+    const { scenario:_s1, _base:_b1, ...nextVals } = next;
+    const { scenario:_s2, _base:_b2, ...baseVals } = s.baseAsm || {};
+    const isBase = JSON.stringify(nextVals) === JSON.stringify(baseVals);
+    return { asm: { ...next, scenario: p.scenario ?? (isBase ? (s.baseAsm?.scenario || 'base') : 'custom') } };
+  });
   const H3 = hist.slice(-3);
   const hu = h => { const u=h.usd, m=cogsMix(h), ce=Math.max(0,u.cogs-u.daCogs); return { rev:u.rev, mat:ce*m.mat, lab:ce*m.lab, ovh:ce*m.ovh, psd:Math.max(0,u.psd-u.daPsd), ga:Math.max(0,u.ga-u.daGa-u.addb), rnd:Math.max(0,u.rnd-u.daRnd), ebitda:u.ebitdaAdj, da:u.da, ebit:u.ebitdaAdj-u.da, nwc:u.nwc }; };
   const HU = H3.map(hu);
@@ -253,7 +259,7 @@ export function L7Audit({ hist, st, up, V, audit, print, setPrinting }){
           <li key={f.id} className={'f-'+f.sev+(f.closed?' closed':'')}>
             <div className="fh"><span className={'sev '+f.sev}>{sevL[f.sev]}</span><Tag>{f.layer}</Tag><b>{f.title}</b>
               {!print && <button className="lnk" onClick={()=>toggle(f.id)}>{f.closed ? 'Yeniden aç' : 'Kapat'}</button>}</div>
-            <p>{f.detail}</p><p className="fix">{f.fix}</p>
+            <p style={{width:'80%', margin:'0 auto', textAlign:'left'}}>{f.detail}</p><p className="fix" style={{width:'80%', margin:'0 auto', textAlign:'left'}}>{f.fix}</p>
           </li>))}</ul>)}
     </Panel>
   );

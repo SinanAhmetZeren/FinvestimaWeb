@@ -19,7 +19,7 @@ const aiBaseQuery = fetchBaseQuery({
 export const aiApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     startExtractionJob: builder.mutation({
-      queryFn: async ({ file, topPercent, bottomPercent, leftPercent, rightPercent, pages, documentType, years } = {}, api, extraOptions) => {
+      queryFn: async ({ file, topPercent, bottomPercent, leftPercent, rightPercent, pages, documentType, years, valuationTaskId } = {}, api, extraOptions) => {
         const formData = new FormData();
         formData.append("file", file);
         if (topPercent != null) formData.append("topPercent", topPercent);
@@ -29,6 +29,7 @@ export const aiApiSlice = apiSlice.injectEndpoints({
         if (pages) formData.append("pages", pages);
         if (documentType) formData.append("documentType", documentType);
         if (years) formData.append("years", years);
+        if (valuationTaskId) formData.append("valuationTaskId", valuationTaskId);
         return aiBaseQuery(
           { url: "/api/ai/extract-financials", method: "POST", body: formData },
           api,

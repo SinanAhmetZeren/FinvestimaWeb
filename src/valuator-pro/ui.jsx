@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { RightColContext } from './rightColContext.js';
 
@@ -84,7 +84,7 @@ export function Empty({ title, children, action }){
 }
 
 // Finansal tablo: kolonlar (yıllar) + satırlar
-export function FinTable({ head, rows, band, firstLabel='', fmt = par, note }){
+export function FinTable({ head, rows, band, firstLabel='', fmt = par, note, onRowClick }){
   return (
     <div className="scroll">
       <table className="g">
@@ -94,7 +94,7 @@ export function FinTable({ head, rows, band, firstLabel='', fmt = par, note }){
         </thead>
         <tbody>
           {rows.map((r,i) => r.spacer ? <tr key={i} className="spacer"><td colSpan={head.length+1}></td></tr> : (
-            <tr key={i} className={r.cls||''}>
+            <tr key={i} className={(r.cls||'')+(onRowClick && (r.key||r.parts||r.ratioParts||r.codes) ? ' click' : '')} onClick={onRowClick && (r.key||r.parts||r.ratioParts||r.codes) ? ()=>onRowClick(r) : undefined}>
               <td className="lbl">{r.l}{r.tag && <> {r.tag}</>}</td>
               {r.v.map((x,j)=> <td key={j} className={'n'+((typeof x==='number' && x<=-0.5)?' neg':'')+(head[j]?.cls?' '+head[j].cls:'')}>{typeof x==='number' ? (r.f||fmt)(x) : (x ?? '')}</td>)}
             </tr>
