@@ -25,7 +25,7 @@ const LAYERS = [
 ];
 
 const EMPTY = { company:'', ledgers:[], pdfDocs:[], monthly:[], fx:{}, partnersAsDebt:true, fxInEbitda:false,
-  daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[], valuationTaskId:null, maxCodeDigits:null };
+  daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[], valuationTaskId:null, maxCodeDigits:0 };
 
 export default function ValuatorProEngine(){
   const [uploadTrialBalance] = useUploadTrialBalanceMutation();
@@ -40,7 +40,14 @@ export default function ValuatorProEngine(){
   const [busy, setBusy] = useState(false);
   const [uploadPoll, setUploadPoll] = useState(null); // { status, key } — Starting/Pending/Processing/Completed/Failed
   const pollKeyRef = useRef(0);
-  const flashPoll = status => { pollKeyRef.current += 1; setUploadPoll({ status, key: pollKeyRef.current }); };
+  const flashPoll = status => {
+    pollKeyRef.current += 1;
+    const key = pollKeyRef.current;
+    setUploadPoll({ status, key });
+    if (status === 'Completed' || status === 'Failed'){
+      setTimeout(() => setUploadPoll(p => (p?.key === key ? null : p)), 5000);
+    }
+  };
   const [printing, setPrinting] = useState(false);
   const [rightColEl, setRightColEl] = useState(null);
   const [railOpen, setRailOpen] = useState(true);
@@ -113,6 +120,8 @@ export default function ValuatorProEngine(){
       { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
     ));
     if (newLedgers.length) up(s => ({ ledgers: newLedgers }));
+    const monthly = (task.monthlySales || []).map(m => ({ y: m.year, m: m.month, rev: m.revenue, mat: m.materialCost, opex: m.opex }));
+    up({ monthly });
     setLayer('L1');
   };
 
@@ -140,7 +149,9 @@ export default function ValuatorProEngine(){
           const r = await parseWorkbookFile(f);
           // [eski client-side mizan parsing — geri dönülebilir olsun diye silinmedi, yorum satırı]
           // if (r.mizans.length) up(s => ({ ledgers: [...s.ledgers, ...r.mizans], company: s.company || r.mizans[0].company || '' }));
-          if (r.monthly.length) up(s => { const key = m => m.y*100+m.m; const mp = new Map(s.monthly.map(m=>[key(m),m])); r.monthly.forEach(m=>mp.set(key(m),m)); return { monthly:[...mp.values()].sort((a,b)=>key(a)-key(b)) }; });
+          // Aylık satış artık mizan gibi Gemini'den geliyor (bkz. aşağıdaki task.monthlySales
+          // okuması) — client-side parseWorkbookFile sonucu burada kullanılmıyor, yorum satırı.
+          // if (r.monthly.length) up(s => { const key = m => m.y*100+m.m; const mp = new Map(s.monthly.map(m=>[key(m),m])); r.monthly.forEach(m=>mp.set(key(m),m)); return { monthly:[...mp.values()].sort((a,b)=>key(a)-key(b)) }; });
           if (r.fx) up(s => { const o = { ...s.fx }; for (const y in r.fx){ o[y] = { ...(o[y]||{}), ...(r.fx[y].avg?{avg:r.fx[y].avg}:{}), ...(r.fx[y].end?{end:r.fx[y].end}:{}) }; } return { fx:o }; });
 
           if (!currentTaskId){
@@ -171,13 +182,16 @@ export default function ValuatorProEngine(){
             const years = new Set(newLedgers.map(l=>l.year));
             return { ledgers: [...s.ledgers.filter(l=>!years.has(l.year)), ...newLedgers], company: s.company || task.companyName || '' };
           });
+          const monthly = (task.monthlySales || []).map(m => ({ y: m.year, m: m.month, rev: m.revenue, mat: m.materialCost, opex: m.opex }));
+          up({ monthly });
 
           const touchedLedgers = newLedgers.filter(l => thisJobYears.has(l.year));
+          const monthlySalesRowCount = completedJob.result?.monthlySalesRowCount || 0;
           const parts = [];
-          parts.push(`${touchedLedgers.length} mizan (${touchedLedgers.map(l=>l.year||'yıl?').join(', ')})`);
-          if (r.monthly.length) parts.push(`${r.monthly.length} aylık satış satırı`);
+          if (touchedLedgers.length) parts.push(`${touchedLedgers.length} mizan (${touchedLedgers.map(l=>l.year||'yıl?').join(', ')})`);
+          if (monthlySalesRowCount) parts.push(`${monthlySalesRowCount} aylık satış satırı`);
           if (r.fx) parts.push(`${Object.keys(r.fx).length} yıllık kur`);
-          log(`${f.name}: ${parts.join(', ')} okundu.`);
+          log(`${f.name}: ${parts.length ? parts.join(', ')+' okundu' : 'tanınan veri bulunamadı'}.`);
         } else if (['xlsm','csv','ods'].includes(ext)){
           const r = await parseWorkbookFile(f);
           if (r.mizans.length) up(s => ({ ledgers: [...s.ledgers, ...r.mizans], company: s.company || r.mizans[0].company || '' }));

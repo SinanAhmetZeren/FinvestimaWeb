@@ -8,7 +8,7 @@ import { useEditTrialBalanceAccountMutation, useGetMyValuationTasksQuery, useRem
 const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const POLL_COLORS = { Starting: 'var(--gold)', Pending: 'var(--faint)', Processing: 'var(--teal)', Completed: 'var(--green)', Failed: 'var(--red)' };
-const POLL_LABELS = { Starting: 'Gönderiliyor', Pending: 'Sırada', Processing: 'Gemini okuyor', Completed: 'Tamamlandı', Failed: 'Başarısız' };
+const POLL_LABELS = { Starting: 'Gönderiliyor', Pending: 'Sırada', Processing: 'İşleniyor', Completed: 'Tamamlandı', Failed: 'Başarısız' };
 
 export function L0Tasks({ st, selectTask }) {
   const { data: tasks, error, isLoading } = useGetMyValuationTasksQuery();
@@ -73,7 +73,7 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
 
         {fileKind === 'excel' && <>
           <div className="codedepth">
-            <span style={{ display: 'block', textAlign: 'left', fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Mizan satırları hangi kod derinliğine kadar kullanılsın?</span>
+            <span style={{ display: 'block', textAlign: 'left', fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Yüklediğiniz dosya mizan içeriyorsa, hangi kod derinliğine kadar kullanılsın?</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '65%', margin: '0 auto' }}>
               {[[3, 'Sadece 3 haneli kodlar', '(örn. 100)'], [5, '5 haneye kadar kodlar', '(örn. 100 01)'], [7, '7 haneye kadar kodlar', '(örn. 100 01 01)'], [0, 'Tamamını kullan', '']].map(([v, l, ex]) => (
                 <button key={v} type="button" className={'codedepth-btn' + (st.maxCodeDigits === v ? ' sel' : '')} onClick={() => up({ maxCodeDigits: v })}>
@@ -84,25 +84,27 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
             <p className="muted" style={{ fontSize: 13, width: '70%', marginTop: 8, marginLeft: '17.5%', marginRight: '12.5%', textAlign: 'left' }}>Hariç tutulan kodlar sistem tarafından ayıklanır ve veri işleme için 3. taraflara gönderilmez. Bilgiler seçiminiz doğrultusunda önce anonimleştirilir sonra veritabanına yazılır.</p>
           </div>
           <div className={'drop' + (over ? ' over' : '') + (busy ? ' busy' : '') + (st.maxCodeDigits == null ? ' disabled' : '')}
+            style={{
+              width: '65%', margin: '0 auto',
+              ...(uploadPoll ? {
+                borderColor: POLL_COLORS[uploadPoll.status] || 'var(--faint)', borderStyle: 'solid',
+                background: 'color-mix(in srgb, ' + (POLL_COLORS[uploadPoll.status] || 'var(--faint)') + ' 8%, #F8FAFE)',
+                animation: (uploadPoll.status === 'Starting' || uploadPoll.status === 'Pending' || uploadPoll.status === 'Processing') ? 'box-pulse 1.2s ease infinite' : undefined,
+              } : {}),
+            }}
             onDragOver={e => { e.preventDefault(); if (st.maxCodeDigits != null) setOver(true); }} onDragLeave={() => setOver(false)}
             onDrop={e => { if (st.maxCodeDigits != null) drop(e); else e.preventDefault(); }}
             onClick={() => { if (st.maxCodeDigits != null) inp.current?.click(); }} role="button" tabIndex={0}
             onKeyDown={e => { if (st.maxCodeDigits != null && (e.key === 'Enter' || e.key === ' ')) inp.current?.click(); }}>
             <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 23V7m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><path d="M6 21v5a2 2 0 002 2h18a2 2 0 002-2v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            <b>{busy ? 'Dosyalar okunuyor…' : st.maxCodeDigits == null ? 'Önce yukarıdan bir kod derinliği seçin' : 'Dosyaları buraya bırakın ya da seçmek için tıklayın'}</b>
+            <b style={uploadPoll ? { color: POLL_COLORS[uploadPoll.status] || 'var(--faint)' } : undefined}>
+              {uploadPoll ? (POLL_LABELS[uploadPoll.status] || uploadPoll.status) : busy ? 'Dosyalar okunuyor…' : st.maxCodeDigits == null ? 'Önce yukarıdan bir kod derinliği seçin' : 'Dosyaları buraya bırakın ya da seçmek için tıklayın'}
+            </b>
             <input ref={inp} type="file" multiple disabled={st.maxCodeDigits == null} accept=".xlsx,.xls,.xlsm,.csv,.ods" hidden onChange={e => { onFiles([...e.target.files]); e.target.value = ''; }} />
           </div>
         </>}
 
         {fileKind === 'pdf' && <PdfUpload up={up} log={log} valuationTaskId={st.valuationTaskId} />}
-
-        <div className="droprow">
-          {uploadPoll && <span key={uploadPoll.key} style={{
-            padding: '5px 12px', borderRadius: 999, color: '#fff', fontSize: 11.5, fontWeight: 700,
-            background: POLL_COLORS[uploadPoll.status] || 'var(--faint)',
-            animation: uploadPoll.status === 'Starting' ? 'pill-pulse 1s ease infinite' : 'poll-flash 2s ease forwards',
-          }}>{POLL_LABELS[uploadPoll.status] || uploadPoll.status}</span>}
-        </div>
       </Panel>
 
       <Panel title="Yüklenen kaynaklar" sub={rawLedgers.length ? `${rawLedgers.length} dönem` : ''} flush>

@@ -85,6 +85,15 @@ a:hover {
   }
 }
 
+@keyframes box-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 /* Finvestima data-table language: caption + thead + tbody rows,
    used by the DCF and Extract pages. */
 .fin-table th,
