@@ -1,0 +1,298 @@
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { setVpLang, setPendingTask, clearPendingTask } from '../slices/VpLangSlice.js';
+import { buildLedger } from './engine/ledger_en.js';
+import { parseWorkbookFile } from './engine/parseExcel.js';
+import { parsePdfFile, ledgerFromItems } from './engine/parsePdf.js';
+import { useUploadTrialBalanceMutation, useLazyGetUploadJobQuery, useLazyGetValuationTaskQuery } from '../slices/ValuatorProSlice.js';
+import { buildHistory, DEFAULT_FX } from './engine/statements.js';
+import { fetchFxSummary } from './engine/fxApi.js';
+import { defaultAssumptions, valuate, runRate } from './engine/valuation.js';
+import { runAudit } from './engine/audit_en.js';
+import { mUsd, pc } from './ui.jsx';
+import { RightColContext } from './rightColContext.js';
+import RailNavEn from './RailNav_en.jsx';
+import * as InputsEn from './layers/Inputs_en.jsx';
+import * as StatementsEn from './layers/Statements_en.jsx';
+import * as ValuationEn from './layers/Valuation_en.jsx';
+
+
+const EMPTY = { company:'', ledgers:[], pdfDocs:[], monthly:[], fx:{}, partnersAsDebt:true, fxInEbitda:false,
+  daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[], valuationTaskId:null, maxCodeDigits:0 };
+
+export default function ValuatorProEngine(){
+  const [uploadTrialBalance] = useUploadTrialBalanceMutation();
+  const [fetchUploadJob] = useLazyGetUploadJobQuery();
+  const [fetchValuationTask] = useLazyGetValuationTaskQuery();
+  const dispatch = useDispatch();
+  // Veri DB'den geliyor (L0'da task seçilince taze çekilir) — localStorage'da ayrıca
+  // saklamıyoruz, her girişte sıfırdan başlanır, bayat/çelişkili veri görünmesin diye.
+  const [st, setSt] = useState(EMPTY);
+  // Her açılışta L0'dan başlanır — kullanıcı kendisine atanmış task'lardan birini seçene kadar
+  // L1+'a geçilmez. Admin task açtığı için burada "yeni task" seçeneği yok, sadece seçim var.
+  const [layer, setLayer] = useState('L0');
+  const [busy, setBusy] = useState(false);
+  const [uploadPoll, setUploadPoll] = useState(null); // { status, key } — Starting/Pending/Processing/Completed/Failed
+  const pollKeyRef = useRef(0);
+  const flashPoll = status => {
+    pollKeyRef.current += 1;
+    const key = pollKeyRef.current;
+    setUploadPoll({ status, key });
+    if (status === 'Completed' || status === 'Failed'){
+      setTimeout(() => setUploadPoll(p => (p?.key === key ? null : p)), 5000);
+    }
+  };
+  const I = InputsEn;
+  const S = StatementsEn;
+  const Val = ValuationEn;
+  const [printing, setPrinting] = useState(false);
+  const [rightColEl, setRightColEl] = useState(null);
+  const [railOpen, setRailOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  useEffect(() => { if (rightColEl) rightColEl.scrollTop = 0; }, [layer, rightColEl]);
+  const up = useCallback(patch => setSt(s => ({ ...s, ...(typeof patch==='function' ? patch(s) : patch) })), []);
+
+  const pdfLedgers = useMemo(() => st.pdfDocs.flatMap(d => {
+    const out = [ledgerFromItems(d.items, { year:d.year, which:'cur', fileName:d.fileName, id:d.id+'c' })];
+    if (d.usePrev && d.year) out.push(ledgerFromItems(d.items, { year:d.year-1, which:'prev', fileName:d.fileName, id:d.id+'p' }));
+    return out;
+  }), [st.pdfDocs]);
+
+  const rawLedgers = useMemo(() => [...st.ledgers.filter(l=>l.year), ...pdfLedgers.filter(l=>l.year)], [st.ledgers, pdfLedgers]);
+  const ledgers = useMemo(() => {
+    const by = {};
+    for (const L of rawLedgers){ const e = by[L.year]; if (!e || (e.source==='pdf' && L.source==='mizan')) by[L.year] = L; }
+    return Object.values(by).sort((a,b)=>a.year-b.year);
+  }, [rawLedgers]);
+
+  const [apiFx, setApiFx] = useState(null);
+  useEffect(() => { fetchFxSummary().then(setApiFx); }, []);
+  const fxBase = apiFx || DEFAULT_FX;
+  const fxTable = useMemo(() => { const o = {}; new Set([...Object.keys(fxBase), ...Object.keys(st.fx)]).forEach(y => o[y] = { ...(st.fx[y]||{}), ...(fxBase[y]||{}) }); return o; }, [fxBase, st.fx]);
+  const hist = useMemo(() => ledgers.length ? buildHistory(ledgers, st) : [], // eslint-disable-next-line
+    [ledgers, st.fx, st.partnersAsDebt, st.fxInEbitda, st.daOverride, st.annualize, st.addbacks]);
+  const lastYear = hist.length ? hist[hist.length-1].year : null;
+  const rr = useMemo(() => hist.length ? runRate(st.monthly, hist, fxTable, lastYear+1) : null, [st.monthly, hist, fxTable, lastYear]);
+
+  useEffect(() => {
+    if (hist.length && (!st.asm || st.asm._base !== lastYear)){
+      const A = { ...defaultAssumptions(hist), _base: lastYear };
+      up({ asm: A, baseAsm: A });
+    }
+  }, [hist, lastYear]); // eslint-disable-line
+
+  const V = useMemo(() => { try { return (hist.length && st.asm && st.asm._base===lastYear) ? valuate(hist, st.asm, { rr }) : null; } catch(e){ console.error(e); return null; } }, [hist, st.asm, rr, lastYear]);
+  const audit = useMemo(() => {
+    const a = runAudit({ hist, ledgers: rawLedgers, monthly: st.monthly, V, A: st.asm, state: st });
+    a.findings.forEach(f => f.closed = st.closed.includes(f.id));
+    const w = { crit:2, warn:.6, info:.15 };
+    a.score = Math.max(0, Math.min(10, 10 - a.findings.filter(f=>!f.closed).reduce((s,f)=>s+w[f.sev],0)));
+    return a;
+  }, [hist, rawLedgers, st, V]);
+
+  const log = msg => up(s => ({ log: [{ t: new Date().toLocaleTimeString('tr-TR'), msg }, ...s.log].slice(0,40) }));
+
+  // jobId'yi Completed/Failed olana kadar poll eder; her denemede onTick(job) çağrılır (ilk
+  // deneme dahil) ki UI canlı durumu (Pending/Processing/...) yansıtabilsin.
+  const pollUploadJob = async (jobId, onTick, { intervalMs = 1500, timeoutMs = 120000 } = {}) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs){
+      const job = await fetchUploadJob(jobId).unwrap();
+      onTick?.(job);
+      if (job.status === 'Completed') return job;
+      if (job.status === 'Failed') throw new Error(job.errorMessage || 'Gemini processing failed.');
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    throw new Error('Operation timed out.');
+  };
+
+  // Müşteri kendisi task açmaz — admin ödeme teyidinden sonra açar. L0'da kullanıcı kendisine
+  // atanmış task'lardan birini seçince burası çalışır.
+  const selectTask = async (t) => {
+    setUploadPoll(null);
+    up({ valuationTaskId: t.id, company: t.companyName, ledgers: [], pdfDocs: [], log: [] });
+    const task = await fetchValuationTask(t.id).unwrap();
+    if (task.accountingStandard !== 'UsGaap') {
+      // Bu motor GAAP için — Tekdüzen task seçildiğinde TR motoruna geçilir, o motor
+      // mount olunca bu task'ı kendisi seçip L1'e geçer (bkz. pendingTaskId effect'i).
+      dispatch(setPendingTask(t.id));
+      dispatch(setVpLang('tr'));
+      return;
+    }
+    const newLedgers = task.years.map(y => buildLedger(
+      y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride, sources:a.sources }; }),
+      { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
+    ));
+    if (newLedgers.length) up(s => ({ ledgers: newLedgers }));
+    const monthly = (task.monthlySales || []).map(m => ({ y: m.year, m: m.month, rev: m.revenue, mat: m.materialCost, opex: m.opex }));
+    up({ monthly });
+    setLayer('L1');
+  };
+
+  // Diğer motordan (TR) bir GAAP task seçilip buraya yönlendirilmişse, mount olur olmaz
+  // o task'ı burada otomatik seç (ikinci tıklama gerekmesin diye).
+  const pendingTaskId = useSelector(s => s.vpLang.pendingTaskId);
+  useEffect(() => {
+    if (pendingTaskId) { dispatch(clearPendingTask()); selectTask({ id: pendingTaskId }); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onFiles = async (files) => {
+    setBusy(true);
+    setUploadPoll(null);
+    // Döngüde st.valuationTaskId kullanılamaz — React state'i senkron güncellenmediği için
+    // 2. ve 3. dosya hâlâ eski (bayat) değeri görür, bu da her dosya için ayrı bir task
+    // açılmasına yol açar. Bunun yerine döngü boyunca güncel id'yi burada takip ediyoruz.
+    let currentTaskId = st.valuationTaskId;
+    for (const f of files){
+      const ext = f.name.split('.').pop().toLowerCase();
+      try {
+        if (ext==='pdf'){
+          const r = await parsePdfFile(f);
+          const doc = { id:'P'+Math.random().toString(36).slice(2,8), fileName:f.name, year:r.year, items:r.items, twoCols:r.twoCols, usePrev:false, totals:r.totals, pages:r.pages };
+          up(s => ({ pdfDocs:[...s.pdfDocs, doc], company: s.company || r.company || '' }));
+          const mapped = r.items.filter(i=>i.kind==='mapped').length, un = r.items.filter(i=>i.kind==='unmapped').length;
+          log(`${f.name}: tax return read, ${r.pages} page(s), ${mapped} item(s) mapped, ${un} item(s) awaiting mapping${r.year?'':'; year not found, enter it in L1'}.`);
+        } else if (['xlsx','xls'].includes(ext)){
+          // Mizan artık tarayıcıda değil, backend'de Gemini ile çıkarılıyor (isimler/üçüncü
+          // taraf bilgisi dosyayı terk etmeden önce temizleniyor — bkz. MizanDepthFilter).
+          // Aylık satış raporu ve kur tablosu sayfaları için parseWorkbookFile hâlâ kullanılıyor,
+          // backend şu an sadece mizan'ı destekliyor.
+          const r = await parseWorkbookFile(f);
+          // [eski client-side mizan parsing — geri dönülebilir olsun diye silinmedi, yorum satırı]
+          // if (r.mizans.length) up(s => ({ ledgers: [...s.ledgers, ...r.mizans], company: s.company || r.mizans[0].company || '' }));
+          // Aylık satış artık mizan gibi Gemini'den geliyor (bkz. aşağıdaki task.monthlySales
+          // okuması) — client-side parseWorkbookFile sonucu burada kullanılmıyor, yorum satırı.
+          // if (r.monthly.length) up(s => { const key = m => m.y*100+m.m; const mp = new Map(s.monthly.map(m=>[key(m),m])); r.monthly.forEach(m=>mp.set(key(m),m)); return { monthly:[...mp.values()].sort((a,b)=>key(a)-key(b)) }; });
+          if (r.fx) up(s => { const o = { ...s.fx }; for (const y in r.fx){ o[y] = { ...(o[y]||{}), ...(r.fx[y].avg?{avg:r.fx[y].avg}:{}), ...(r.fx[y].end?{end:r.fx[y].end}:{}) }; } return { fx:o }; });
+
+          if (!currentTaskId){
+            log(`${f.name}: önce L0'dan bir iş seçmelisiniz.`);
+            continue;
+          }
+          flashPoll('Starting');
+          const { jobId, valuationTaskId } = await uploadTrialBalance({
+            file: f,
+            valuationTaskId: currentTaskId,
+            companyName: st.company || undefined,
+            taskTitle: 'Valuation',
+            maxCodeDigits: st.maxCodeDigits,
+          }).unwrap();
+          currentTaskId = valuationTaskId;
+          up({ valuationTaskId });
+          log(`${f.name}: Gemini ile mizan okunuyor…`);
+          const completedJob = await pollUploadJob(jobId, job => flashPoll(job.status));
+          const thisJobYears = new Set((completedJob.result?.years || []).map(y => y.year));
+          const task = await fetchValuationTask(valuationTaskId).unwrap();
+          dispatch(setVpLang(task.accountingStandard === 'UsGaap' ? 'en' : 'tr'));
+          const newLedgers = task.years.map(y => buildLedger(
+            // Bakiye (db/cb) backend'in debitBalance/creditBalance alanından değil, Debit-Credit
+            // farkından kendimiz hesaplanıyor — Gemini bu iki ayrı alanı tutarsız okuyabiliyor.
+            y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride, sources:a.sources }; }),
+            { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
+          ));
+          up(s => {
+            const years = new Set(newLedgers.map(l=>l.year));
+            return { ledgers: [...s.ledgers.filter(l=>!years.has(l.year)), ...newLedgers], company: s.company || task.companyName || '' };
+          });
+          const monthly = (task.monthlySales || []).map(m => ({ y: m.year, m: m.month, rev: m.revenue, mat: m.materialCost, opex: m.opex }));
+          up({ monthly });
+
+          const touchedLedgers = newLedgers.filter(l => thisJobYears.has(l.year));
+          const monthlySalesRowCount = completedJob.result?.monthlySalesRowCount || 0;
+          const parts = [];
+          if (touchedLedgers.length) parts.push(`${touchedLedgers.length} trial balance(s) (${touchedLedgers.map(l=>l.year||'year?').join(', ')})`);
+          if (monthlySalesRowCount) parts.push(`${monthlySalesRowCount} monthly sales row(s)`);
+          if (r.fx) parts.push(`${Object.keys(r.fx).length} yearly FX rate(s)`);
+          log(`${f.name}: ${parts.length ? parts.join(', ')+' read' : 'no recognizable data found'}.`);
+        } else if (['xlsm','csv','ods'].includes(ext)){
+          const r = await parseWorkbookFile(f);
+          if (r.mizans.length) up(s => ({ ledgers: [...s.ledgers, ...r.mizans], company: s.company || r.mizans[0].company || '' }));
+          if (r.monthly.length) up(s => { const key = m => m.y*100+m.m; const mp = new Map(s.monthly.map(m=>[key(m),m])); r.monthly.forEach(m=>mp.set(key(m),m)); return { monthly:[...mp.values()].sort((a,b)=>key(a)-key(b)) }; });
+          if (r.fx) up(s => { const o = { ...s.fx }; for (const y in r.fx){ o[y] = { ...(o[y]||{}), ...(r.fx[y].avg?{avg:r.fx[y].avg}:{}), ...(r.fx[y].end?{end:r.fx[y].end}:{}) }; } return { fx:o }; });
+          const parts = [];
+          if (r.mizans.length) parts.push(`${r.mizans.length} trial balance(s) (${r.mizans.map(m=>m.year||'year?').join(', ')})`);
+          if (r.monthly.length) parts.push(`${r.monthly.length} monthly sales row(s)`);
+          if (r.fx) parts.push(`${Object.keys(r.fx).length} yearly FX rate(s)`);
+          log(`${f.name}: ${parts.length ? parts.join(', ')+' read' : 'no recognizable sheet found'}${r.skipped.length ? `; skipped sheets: ${r.skipped.slice(0,4).join(', ')}${r.skipped.length>4?'…':''}` : ''}.`);
+        } else log(`${f.name}: unsupported file type. Upload Excel (.xlsx, .xls, .csv) or PDF.`);
+      } catch(e){ console.error(e); log(`${f.name}: okunamadı. ${e.message}`); }
+    }
+    setBusy(false);
+  };
+
+  const loadSample = async () => {
+    const S = (await import('./engine/sample.json')).default;
+    const L = Object.entries(S.mizan).map(([y,rows]) => buildLedger(rows.map(r=>({code:r[0],name:r[1],dt:r[2],ct:r[3],db:r[4],cb:r[5]})), { year:+y, source:'mizan', fileName:`Sample trial balance ${y}`, label:`01/01/${y}-31/12/${y}` }));
+    setSt({ ...EMPTY, company:'Sample Industries Inc.', ledgers:L, monthly:S.monthly,
+      addbacks:[{ id:'a1', name:'Shareholder-related G&A expenses (50%)', year:2025, tl:7407497, ev:false, on:false }],
+      log:[{ t:new Date().toLocaleTimeString('en-US'), msg:'Sample case loaded: 2023–2025 trial balances and 2023–2026/06 monthly sales report.' }] });
+    setLayer('L3');
+  };
+  const reset = () => { if (window.confirm('Delete all files and assumptions?')) { setUploadPoll(null); setSt(EMPTY); setLayer('L0'); } };
+
+  const ctx = { st, setSt, up, hist, ledgers, rawLedgers, V, audit, fxTable, rr, onFiles, loadSample, reset, busy, setLayer, log, setPrinting, uploadPoll, selectTask };
+  const done = { L1: ledgers.length>0, L2: hist.length>0 && hist.every(h=>Math.abs(h.bs.check)<Math.max(1,h.bs.TA*0.0005)), L3: hist.length>0, L4: hist.length>0, L5: !!V, L6: !!V, L7: !!V && audit.findings.every(f=>f.closed||f.sev!=='crit') };
+
+  useEffect(() => { if (printing){ const t = setTimeout(()=>{ window.print(); setPrinting(false); }, 350); return ()=>clearTimeout(t); } }, [printing]);
+
+  return (
+    <RightColContext.Provider value={rightColEl}>
+    <div lang="en" className={'app vp-root'+(printing?' printing':'')}>
+      {railOpen && <RailNavEn layer={layer} setLayer={setLayer} done={done} taskSelected={!!st.valuationTaskId} />}
+      <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} style={{ left: railOpen ? 'var(--rail)' : 0 }} aria-label={railOpen?'Hide left panel':'Show left panel'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
+
+      <div className="main">
+        <header className="top">
+          <div className="case">
+            {layer!=='L0' && <input className="cname" value={st.company} placeholder="Company name" onChange={e=>up({company:e.target.value})} aria-label="Company name" />}
+            {layer!=='L0' && <span className="cmeta">{hist.length ? `${hist[0].year}–${hist[hist.length-1].year} historical, USD '000` : 'No data uploaded yet'}</span>}
+          </div>
+          {V && <div className="headline">
+            <div><span className="hl">Enterprise value</span><b>{mUsd(V.ev)}</b></div>
+            <div><span className="hl">Equity value</span><b>{mUsd(V.eq)}</b></div>
+            <div><span className="hl">Confidence score</span><b className={audit.score>=7?'ok':audit.score>=4?'wn':'er'}>{audit.score.toFixed(1)}</b></div>
+            <div className="hide-sm"><span className="hl">WACC</span><b>{pc(V.P.w)}</b></div>
+          </div>}
+        </header>
+        {/* Sol rail ile yinelendiği için kaldırıldı — silinmedi, gerekirse geri açılabilir.
+        <div className="stepper" role="tablist">
+          {LAYERS.map((l,i) => <span key={l.k} className="stepw">{i>0 && <span className="stepline"/>}<button role="tab" className={'step'+(done[l.k]?' done':'')} aria-current={layer===l.k} aria-selected={layer===l.k} onClick={()=>setLayer(l.k)}><i>{l.k}</i>{l.n}</button></span>)}
+        </div>
+        */}
+        <main className="work">
+          {printing ? <PrintReport {...ctx} /> : (
+            <>
+              {layer==='L0' && <I.L0Tasks {...ctx} />}
+              {layer==='L1' && <I.L1Inputs {...ctx} />}
+              {layer==='L2' && <I.L2Mapping {...ctx} />}
+              {layer==='L3' && <S.L3Balance {...ctx} />}
+              {layer==='L4' && <S.L4Income {...ctx} />}
+              {layer==='L5' && <Val.L5Assumptions {...ctx} />}
+              {layer==='L6' && <Val.L6Valuation {...ctx} />}
+              {layer==='L7' && <Val.L7Audit {...ctx} />}
+            </>
+          )}
+        </main>
+      </div>
+
+      <button type="button" className={'rightColToggle'+(rightOpen?'':' collapsed')} style={{ right: rightOpen ? 'var(--insp)' : 0 }} aria-label={rightOpen?'Hide right panel':'Show right panel'} onClick={()=>setRightOpen(v=>!v)}>{rightOpen?'›':'‹'}</button>
+      <aside className={'rightCol'+(rightOpen?'':' collapsed')} aria-label="Right panel" ref={setRightColEl}></aside>
+    </div>
+    </RightColContext.Provider>
+  );
+}
+
+function PrintReport(ctx){
+  return (
+    <div className="report">
+      <h1>{ctx.st.company || 'Company'} valuation report</h1>
+      <p className="rmeta">{new Date().toLocaleDateString('en-US')}. Amounts in '000 USD unless noted.</p>
+      <ValuationEn.L6Valuation {...ctx} print />
+      <StatementsEn.L3Balance {...ctx} print />
+      <StatementsEn.L4Income {...ctx} print />
+      <ValuationEn.L5Assumptions {...ctx} print />
+      <ValuationEn.L7Audit {...ctx} print />
+    </div>
+  );
+}

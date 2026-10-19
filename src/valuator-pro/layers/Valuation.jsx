@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Panel, Seg, Toggle, Tag, Empty, FinTable, NumField, nf, pc, mx, mUsd, Insp } from '../ui.jsx';
 import { RevenueChart, FootballField, Bridge } from '../charts.jsx';
 import { applyScenario, SECTOR_MULTIPLES, defaultAssumptions } from '../engine/valuation.js';
 import { cogsMix } from '../engine/statements.js';
 import { exportWorkbook } from '../engine/exportXlsx.js';
+import { useStartComparableMultiplesMutation, useLazyGetComparableMultiplesJobQuery, useGetLatestComparableMultiplesJobQuery, useGetComparableMultiplesTableQuery, useSaveComparableMultiplesTableMutation } from '../../slices/ValuatorProSlice.js';
 
 const noVal = <div className="left"><Empty title="Değerleme için tarihsel veri gerekli">L1'de en az bir yıllık mizan ya da beyanname yükleyin.</Empty></div>;
 const COSTS = [['mat','Malzeme'],['lab','Direkt işçilik'],['ovh','Genel üretim (amort. hariç)'],['psd','Pazarlama, satış, dağıtım'],['ga','Genel yönetim'],['rnd','Ar-Ge']];
@@ -116,9 +117,170 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
   </>);
 }
 
+const CM_POLL_COLORS = { Starting: 'var(--gold)', Pending: 'var(--faint)', Processing: 'var(--teal)', Completed: 'var(--green)', Failed: 'var(--red)' };
+const CM_POLL_LABELS = { Starting: 'Başlatılıyor…', Pending: 'Sırada…', Processing: 'Araştırılıyor…' };
+
 export function L6Valuation({ hist, st, up, V, print }){
+  const [startComparableMultiples] = useStartComparableMultiplesMutation();
+  const [fetchComparableMultiplesJob] = useLazyGetComparableMultiplesJobQuery();
+  const [cmOpen, setCmOpen] = useState(false);
+  const [cmForm, setCmForm] = useState({ sectorSubSector: '', yearlySales: '', region: '', country: '' });
+  const [cmRows, setCmRows] = useState(null);
+  const [cmResultOpen, setCmResultOpen] = useState(false);
+  const [cmError, setCmError] = useState(null);
+  const [cmStatus, setCmStatus] = useState(null); // null | Starting | Pending | Processing | Completed | Failed
+  const cmLoading = cmStatus === 'Starting' || cmStatus === 'Pending' || cmStatus === 'Processing';
+
+  // L6 Emsal çarpanlar tablosu — task başına kalıcı, boş başlar. AI popup'tan "Kullan" ya da elle
+  // eklenen satırlar sadece burada (local) tutulur; "Kaydet" tüm tabloyu DB'ye yazar.
+  const { data: cmTableData } = useGetComparableMultiplesTableQuery(st.valuationTaskId, { skip: !st.valuationTaskId });
+  const [saveComparableMultiplesTable, { isLoading: cmSaving }] = useSaveComparableMultiplesTableMutation();
+  const [cmTable, setCmTable] = useState([]);
+  const CM_EMPTY_DRAFT = { category: '', rangeLow: '', rangeHigh: '', median: '', vintage: '', sourceBasis: '', sourceUrl: null, isEstimate: false };
+  const [cmDraft, setCmDraft] = useState(CM_EMPTY_DRAFT);
+  const [cmUsedAiRows, setCmUsedAiRows] = useState({}); // ai row index -> persisted row id, so the popup can show "Kaldır"
+  const [cmSelectedRow, setCmSelectedRow] = useState(null); // selected Emsal çarpanlar row id/index — highlights row, applies its median
+  const [cmZHint, setCmZHint] = useState(null); // "Z. Özkaynak" başlığı hover popup'ı — {x,y} ya da null
+  useEffect(() => { if (cmTableData) setCmTable(cmTableData); }, [cmTableData]);
+
+  // Sayfa yenilenince son tamamlanmış AI araştırmasını geri yükle (sadece henüz bu oturumda yeni
+  // bir araştırma çalıştırılmadıysa — cmRows null iken).
+  const { data: cmLatestJob } = useGetLatestComparableMultiplesJobQuery(st.valuationTaskId, { skip: !st.valuationTaskId });
+  useEffect(() => { if (cmLatestJob?.result && cmRows === null) setCmRows(cmLatestJob.result.rows); }, [cmLatestJob, cmRows]);
+
+  // "Kullan"/"Kaldır" durumu kalıcı bir alanla değil, AI satırını (kategori+medyan) persisted
+  // tablodaki satırlarla eşleştirerek türetiliyor — sayfa yenilense de doğru görünür.
+  useEffect(() => {
+    if (!cmRows) return;
+    const map = {};
+    cmRows.forEach((r, i) => {
+      const match = cmTable.find(t => t.category === r.category && Math.abs((+t.median || 0) - (+r.median || 0)) < 0.001);
+      if (match) map[i] = match.id;
+    });
+    setCmUsedAiRows(map);
+  }, [cmRows, cmTable]);
+
   if (!V) return noVal;
   const A = st.asm, P = V.P, W = P.W, B = V.B;
+  const editCmRow = (i, patch) => setCmTable(t => t.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+  const persistCmTable = async (rows) => {
+    try {
+      const saved = await saveComparableMultiplesTable({
+        valuationTaskId: st.valuationTaskId,
+        rows: rows.map(r => ({ id: r.id, category: r.category, rangeLow: +r.rangeLow || 0, rangeHigh: +r.rangeHigh || 0, median: +r.median || 0, vintage: r.vintage || '', sourceBasis: r.sourceBasis || '', sourceUrl: r.sourceUrl, isEstimate: !!r.isEstimate })),
+      }).unwrap();
+      setCmTable(saved);
+      return saved;
+    } catch (e) {
+      console.error('[comparable-multiples-table] save failed', e);
+      alert('Kaydedilemedi: ' + (e.data || e.message || 'bilinmeyen hata'));
+      return null;
+    }
+  };
+  const removeCmRow = (i) => persistCmTable(cmTable.filter((_, idx) => idx !== i));
+  const saveCmDraft = async () => {
+    const saved = await persistCmTable([...cmTable, cmDraft]);
+    if (saved) setCmDraft(CM_EMPTY_DRAFT);
+  };
+  const applyAiRow = (row) => persistCmTable([...cmTable, { ...CM_EMPTY_DRAFT, ...row }]);
+  const removeAiRow = async (aiIndex) => {
+    const id = cmUsedAiRows[aiIndex];
+    const saved = await persistCmTable(cmTable.filter(r => r.id !== id));
+    if (saved) setCmUsedAiRows(m => { const n = { ...m }; delete n[aiIndex]; return n; });
+  };
+  const pollComparableMultiplesJob = async (jobId, { intervalMs = 2000, timeoutMs = 180000 } = {}) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const job = await fetchComparableMultiplesJob(jobId).unwrap();
+      console.log('[comparable-multiples] poll', job);
+      setCmStatus(job.status);
+      if (job.status === 'Completed') return job;
+      if (job.status === 'Failed') throw new Error(job.errorMessage || 'Gemini işlemi başarısız oldu.');
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    throw new Error('İşlem zaman aşımına uğradı.');
+  };
+  const runComparableMultiples = async () => {
+    setCmError(null);
+    setCmStatus('Starting');
+    console.log('[comparable-multiples] starting job', { ...cmForm, ebitda: V.m2.basis });
+    try {
+      const { jobId } = await startComparableMultiples({ valuationTaskId: st.valuationTaskId, ...cmForm, yearlySales: +cmForm.yearlySales || 0, ebitda: V.m2.basis, language: 'tr' }).unwrap();
+      const job = await pollComparableMultiplesJob(jobId);
+      console.log('[comparable-multiples] success', job.result);
+      setCmRows(job.result.rows);
+      setCmUsedAiRows({});
+      setCmOpen(false);
+      setCmResultOpen(true);
+    } catch (e) {
+      console.error('[comparable-multiples] failed', e);
+      setCmError(e.data || e.message || 'Gemini isteği başarısız oldu.');
+      setCmStatus('Failed');
+    } finally {
+      setCmStatus(s => (s === 'Failed' ? s : null));
+    }
+  };
+  const cmField = (lbl, ph, key, numeric) => (
+    <div style={{ display:'flex', flexDirection:'column', gap:5, textAlign:'left' }}>
+      <label style={{ fontSize:11.5, fontWeight:600, color:'var(--navy)' }}>{lbl}</label>
+      <input
+        type={numeric ? 'number' : 'text'}
+        style={{ width:'100%', boxSizing:'border-box', textAlign:'left', fontFamily:'var(--sans)', fontSize:12.5, border:'1px solid var(--line)', borderRadius:5, padding:'7px 9px', background:'#fff' }}
+        value={cmForm[key]} placeholder={ph}
+        onChange={e=>setCmForm(f=>({...f, [key]:e.target.value}))} />
+    </div>
+  );
+  const cmModal = cmOpen && (
+    <div style={{ position:'fixed', inset:0, background:'rgba(17,28,51,.55)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setCmOpen(false)}>
+      <div style={{ background:'#fff', borderRadius:10, width:'min(420px, 95vw)', boxShadow:'0 20px 60px rgba(0,0,0,.3)', textAlign:'left' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px', borderBottom:'1px solid var(--line)' }}>
+          <h3 style={{ margin:0, fontSize:14, color:'var(--navy)' }}>Emsal çarpanlar</h3>
+          <button type="button" onClick={()=>setCmOpen(false)} aria-label="Kapat"
+            style={{ border:0, background:'none', fontSize:18, lineHeight:1, cursor:'pointer', color:'var(--muted)' }}>×</button>
+        </div>
+        <div style={{ padding:'16px 18px', display:'flex', flexDirection:'column', gap:14 }}>
+          {cmField('Sektör / alt sektör', 'örn. otomotiv yedek parça (fren balatası)', 'sectorSubSector')}
+          {cmField('Yıllık ciro (USD)', '', 'yearlySales', true)}
+          {cmField('Bölge', 'örn. EU', 'region')}
+          {cmField('Ülke', 'örn. Almanya', 'country')}
+          {cmError && <p className="muted small" style={{ color:'var(--red)', margin:0 }}>{String(cmError)}</p>}
+          <button type="button" className="btn" disabled={cmLoading} onClick={runComparableMultiples} style={{
+            width:'100%',
+            ...(cmLoading ? {
+              background: CM_POLL_COLORS[cmStatus] || 'var(--navy)', borderColor: CM_POLL_COLORS[cmStatus] || 'var(--navy)',
+              animation: 'box-pulse 1.2s ease infinite',
+            } : {}),
+          }}>{cmLoading ? (CM_POLL_LABELS[cmStatus] || cmStatus) : 'Araştır'}</button>
+        </div>
+      </div>
+    </div>
+  );
+  const cmResultModal = cmResultOpen && cmRows && (
+    <div style={{ position:'fixed', inset:0, background:'rgba(17,28,51,.55)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setCmResultOpen(false)}>
+      <div style={{ background:'#fff', borderRadius:10, width:'min(1100px, 95vw)', maxHeight:'85vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,.3)', textAlign:'left' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px', borderBottom:'1px solid var(--line)' }}>
+          <h3 style={{ margin:0, fontSize:14, color:'var(--navy)' }}>Emsal çarpanlar (AI) — EV / FAVÖK</h3>
+          <button type="button" onClick={()=>setCmResultOpen(false)} aria-label="Kapat"
+            style={{ border:0, background:'none', fontSize:18, lineHeight:1, cursor:'pointer', color:'var(--muted)' }}>×</button>
+        </div>
+        <div className="scroll"><table className="g">
+          <thead><tr className="hd solo"><th></th><th className="lbl">Kategori</th><th className="n">Aralık</th><th className="n">Medyan</th><th>Dönem</th><th className="lbl">Kaynak/baz</th></tr></thead>
+          <tbody>{cmRows.map((r,i) => (
+            <tr key={i}>
+              <td>{cmUsedAiRows[i] != null
+                ? <button type="button" className="btn" style={{ background:'var(--teal)', borderColor:'var(--teal)', padding:'3px 10px', fontSize:11 }} disabled={cmSaving} onClick={()=>removeAiRow(i)}>Kaldır</button>
+                : <button type="button" className="btn" style={{ padding:'3px 10px', fontSize:11 }} disabled={cmSaving} onClick={()=>applyAiRow({ category: r.category, rangeLow: r.rangeLow, rangeHigh: r.rangeHigh, median: r.median, vintage: r.vintage, sourceBasis: r.sourceBasis, sourceUrl: r.sourceUrl, isEstimate: r.isEstimate })}>Kullan</button>}</td>
+              <td className="lbl">{r.category}</td>
+              <td className="n">{mx(r.rangeLow)} – {mx(r.rangeHigh)}</td>
+              <td className="n">{mx(r.median,2)}</td>
+              <td>{r.vintage}</td>
+              <td className="lbl">{r.sourceUrl ? <a href={r.sourceUrl} target="_blank" rel="noreferrer">{r.sourceBasis}</a> : r.sourceBasis}</td>
+            </tr>))}</tbody>
+          <tfoot><tr><td colSpan="6">Gemini tarafından oluşturuldu — figürler AI tahminidir, kullanmadan önce doğrulayın. "Kullan" seçilen satırı doğrudan Emsal çarpanlar tablosuna ekleyip kaydeder.</td></tr></tfoot>
+        </table></div>
+      </div>
+    </div>
+  );
   const setA = p => up(s => ({ asm: { ...s.asm, ...p } }));
   const setW = p => setA({ wacc: { ...A.wacc, ...p } });
   const ws = A.weights.dcf + A.weights.mult + A.weights.na || 1;
@@ -186,15 +348,56 @@ export function L6Valuation({ hist, st, up, V, print }){
         </table></div>
       </Panel>
     </div>
-    <Panel title="Emsal çarpanlar" sub={print?'EV / FAVÖK':'satıra tıklayarak medyanı uygulayın; EV / FAVÖK'} flush>
+    <Panel title="Emsal çarpanlar" sub={print?'EV / FAVÖK':'satıra tıklayarak medyanı uygulayın; EV / FAVÖK'} flush
+      right={!print && <>
+        {cmRows && <button type="button" className="btn" style={{ background:'var(--teal)', borderColor:'var(--teal)', padding:'3px 10px', fontSize:11 }} onClick={()=>setCmResultOpen(true)}>Sonuçları gör</button>}
+        <button type="button" className="btn" disabled={cmLoading} onClick={()=>setCmOpen(true)} style={{
+          padding:'3px 10px', fontSize:11,
+          ...(cmLoading ? {
+            background: CM_POLL_COLORS[cmStatus] || 'var(--navy)', borderColor: CM_POLL_COLORS[cmStatus] || 'var(--navy)',
+            animation: 'box-pulse 1.2s ease infinite',
+          } : {}),
+        }}>{cmLoading ? (CM_POLL_LABELS[cmStatus] || cmStatus) : 'Araştır'}</button>
+      </>}>
       <div className="scroll"><table className="g">
-        <thead><tr className="hd solo"><th className="lbl">Kategori</th><th className="n">Aralık</th><th className="n">Medyan</th><th className="n">Zımni özkaynak (M USD)</th></tr></thead>
-        <tbody>{SECTOR_MULTIPLES.map(s => (
-          <tr key={s.k} className={'click'+(A.mult.sector===s.k?' selrow':'')} onClick={()=>!print && setA({ mult: { ...A.mult, sector:s.k, value:s.med } })}>
-            <td className="lbl">{s.n}</td><td className="n">{mx(s.lo)} – {mx(s.hi)}</td><td className="n">{mx(s.med,2)}</td><td className="n">{nf((V.m2.basis*s.med*(1-A.mult.disc)-V.nd)/1000,1)}</td></tr>))}</tbody>
-        <tfoot><tr><td colSpan="4">Kaynak: sunumdaki 2025–2026 endüstri çarpanları tablosu. Türkiye'deki halka açık olmayan firmalar için ülke riski ve likidite iskontosu nedeniyle alt aralık daha temsilidir.</td></tr></tfoot>
+        <thead><tr className="hd solo"><th></th><th className="lbl">Kategori</th><th className="n">Alt</th><th className="n">Üst</th><th className="n">Medyan</th><th className="n">
+          <span style={{ cursor:'default' }}
+            onMouseEnter={e=>{ const r=e.currentTarget.getBoundingClientRect(); setCmZHint({ x:r.right, y:r.top }); }}
+            onMouseLeave={()=>setCmZHint(null)}>
+            Z. Özkaynak (M$)
+          </span>
+        </th><th>Dönem</th><th className="lbl">Kaynak/baz</th></tr></thead>
+        <tbody>
+          {cmTable.map((r,i) => { const fromAi = !!(r.sourceUrl || r.sourceBasis || r.isEstimate); const sel = cmSelectedRow === (r.id || i); return (
+          <tr key={r.id || i} className={'click'+(sel?' selrow':'')} onClick={()=>{ setCmSelectedRow(r.id || i); setA({ mult: { ...A.mult, sector: undefined, value: +r.median || A.mult.value } }); }}>
+            <td><button type="button" className="btn" style={{ background:'var(--teal)', borderColor:'var(--teal)', padding:'3px 4px', fontSize:11, width:50, boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center' }} onClick={e=>{ e.stopPropagation(); removeCmRow(i); }}>Kaldır</button></td>
+            <td className="lbl">{fromAi ? r.category : <input className="ninp" style={{ width:'100%', textAlign:'left' }} value={r.category} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{category:e.target.value})} />}</td>
+            <td className="n">{fromAi ? mx(r.rangeLow) : <input className="ninp" style={{ width:60 }} type="number" step="0.1" value={r.rangeLow} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{rangeLow:e.target.value})} />}</td>
+            <td className="n">{fromAi ? mx(r.rangeHigh) : <input className="ninp" style={{ width:60 }} type="number" step="0.1" value={r.rangeHigh} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{rangeHigh:e.target.value})} />}</td>
+            <td className="n">{fromAi ? mx(r.median,2) : <input className="ninp" style={{ width:60 }} type="number" step="0.1" value={r.median} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{median:e.target.value})} />}</td>
+            <td className="n">{nf((V.m2.basis*(+r.median||0)*(1-A.mult.disc)-V.nd)/1000,1)}</td>
+            <td>{fromAi ? (r.vintage||'—') : <input className="ninp" style={{ width:70 }} value={r.vintage||''} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{vintage:e.target.value})} />}</td>
+            <td className="lbl">{fromAi ? (r.sourceUrl ? <a href={r.sourceUrl} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}>{r.sourceBasis}</a> : r.sourceBasis) : <input className="ninp" style={{ width:'100%', textAlign:'left' }} value={r.sourceBasis||''} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{sourceBasis:e.target.value})} />}</td>
+          </tr>); })}
+          <tr className="warnrow">
+            <td><button type="button" className="btn" style={{ padding:'3px 4px', fontSize:11, width:50, boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center' }} disabled={cmSaving || !cmDraft.category} onClick={saveCmDraft}>{cmSaving ? '…' : 'Kaydet'}</button></td>
+            <td className="lbl"><input className="ninp" style={{ width:'100%', textAlign:'left' }} placeholder="Kategori" value={cmDraft.category} onChange={e=>setCmDraft(d=>({...d,category:e.target.value}))} /></td>
+            <td className="n"><input className="ninp" style={{ width:60 }} type="number" step="0.1" value={cmDraft.rangeLow} onChange={e=>setCmDraft(d=>({...d,rangeLow:e.target.value}))} /></td>
+            <td className="n"><input className="ninp" style={{ width:60 }} type="number" step="0.1" value={cmDraft.rangeHigh} onChange={e=>setCmDraft(d=>({...d,rangeHigh:e.target.value}))} /></td>
+            <td className="n"><input className="ninp" style={{ width:60 }} type="number" step="0.1" value={cmDraft.median} onChange={e=>setCmDraft(d=>({...d,median:e.target.value}))} /></td>
+            <td className="n"></td>
+            <td><input className="ninp" style={{ width:70 }} placeholder="Dönem" value={cmDraft.vintage} onChange={e=>setCmDraft(d=>({...d,vintage:e.target.value}))} /></td>
+            <td className="lbl"><input className="ninp" style={{ width:'100%', textAlign:'left' }} placeholder="Kaynak/baz" value={cmDraft.sourceBasis} onChange={e=>setCmDraft(d=>({...d,sourceBasis:e.target.value}))} /></td>
+          </tr>
+        </tbody>
+        <tfoot><tr><td colSpan="8">"Araştır" (AI) sonuçlarında "Kullan" ya da elle doldurup en alttaki satırda "Kaydet"e basarak ekleyin.</td></tr></tfoot>
       </table></div>
     </Panel>
+    {cmModal}
+    {cmResultModal}
+    {cmZHint && <div style={{ position:'fixed', left: cmZHint.x, top: cmZHint.y, transform:'translate(-100%, -100%)', marginTop:-6, background:'var(--ink)', color:'#fff', borderRadius:8, boxShadow:'0 10px 30px rgba(0,0,0,.3)', padding:'8px 10px', fontSize:11, fontWeight:400, whiteSpace:'nowrap', zIndex:300, pointerEvents:'none' }}>
+      Zımni özkaynak = Medyan × firmanın FAVÖK'ü, milyon USD
+    </div>}
   </>);
   if (print) return <div className="left">{body}</div>;
   return (<>
@@ -259,7 +462,7 @@ export function L7Audit({ hist, st, up, V, audit, print, setPrinting }){
           <li key={f.id} className={'f-'+f.sev+(f.closed?' closed':'')}>
             <div className="fh"><span className={'sev '+f.sev}>{sevL[f.sev]}</span><Tag>{f.layer}</Tag><b>{f.title}</b>
               {!print && <button className="lnk" onClick={()=>toggle(f.id)}>{f.closed ? 'Yeniden aç' : 'Kapat'}</button>}</div>
-            <p style={{width:'80%', margin:'0 auto', textAlign:'left'}}>{f.detail}</p><p className="fix" style={{width:'80%', margin:'0 auto', textAlign:'left'}}>{f.fix}</p>
+            <p style={{width:'70%', marginLeft:90, marginRight:'auto', textAlign:'left'}}>{f.detail}</p><p className="fix" style={{width:'70%', marginLeft:90, marginRight:'auto', textAlign:'left'}}>{f.fix}</p>
           </li>))}</ul>)}
     </Panel>
   );

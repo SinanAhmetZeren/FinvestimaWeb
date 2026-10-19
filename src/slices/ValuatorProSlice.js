@@ -19,6 +19,36 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       query: (jobId) => `/api/ValuatorPro/upload-trial-balance/${jobId}`,
     }),
 
+    // L6 "Emsal çarpanlar": Gemini araması + yapılandırması 50s+ sürebiliyor — mizan yüklemesiyle
+    // aynı async job + polling deseni (bkz. uploadTrialBalance/getUploadJob).
+    startComparableMultiples: builder.mutation({
+      query: ({ valuationTaskId, sectorSubSector, yearlySales, region, country, ebitda, language }) => ({
+        url: "/api/ValuatorPro/comparable-multiples",
+        method: "POST",
+        body: { valuationTaskId, sectorSubSector, yearlySales, region, country, ebitda, language },
+      }),
+    }),
+    getComparableMultiplesJob: builder.query({
+      query: (jobId) => `/api/ValuatorPro/comparable-multiples/${jobId}`,
+    }),
+    // Sayfa yenilendiğinde son tamamlanmış araştırmayı geri göstermek için.
+    getLatestComparableMultiplesJob: builder.query({
+      query: (valuationTaskId) => `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/comparable-multiples/latest`,
+    }),
+
+    // L6 "Emsal çarpanlar" tablosu — task başına kalıcı, boş başlar; AI popup'tan "Kullan" ya da
+    // elle girilen satırlar "Kaydet" ile tek seferde (tüm tablo) kaydedilir.
+    getComparableMultiplesTable: builder.query({
+      query: (valuationTaskId) => `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/comparable-multiples-table`,
+    }),
+    saveComparableMultiplesTable: builder.mutation({
+      query: ({ valuationTaskId, rows }) => ({
+        url: `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/comparable-multiples-table`,
+        method: "PUT",
+        body: rows,
+      }),
+    }),
+
     // Mizan ızgarasında elle düzeltilen bir hesabı kaydeder — eski satırın üzerine yazmaz,
     // yeni bir versiyon olarak eklenir (en son CreatedAt kazanır).
     editTrialBalanceAccount: builder.mutation({
@@ -26,6 +56,16 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
         url: "/api/ValuatorPro/trial-balance-accounts/manual-edit",
         method: "POST",
         body: { valuationTaskId, year, code, name, debit, credit },
+      }),
+    }),
+
+    // GAAP: Code buraya gölge kodu, originalCode/originalName düzeltilen orijinal hesabı taşır —
+    // bkz. GaapAccountGrouper (latest artık (ShadowCode, OriginalCode) bazında seçiliyor).
+    editGaapTrialBalanceAccount: builder.mutation({
+      query: ({ valuationTaskId, year, code, name, debit, credit, originalCode, originalName }) => ({
+        url: "/api/ValuatorPro/trial-balance-accounts/manual-edit",
+        method: "POST",
+        body: { valuationTaskId, year, code, name, debit, credit, originalCode, originalName },
       }),
     }),
 
@@ -81,6 +121,12 @@ export const {
   useUploadTrialBalanceMutation,
   useLazyGetUploadJobQuery,
   useEditTrialBalanceAccountMutation,
+  useEditGaapTrialBalanceAccountMutation,
+  useStartComparableMultiplesMutation,
+  useLazyGetComparableMultiplesJobQuery,
+  useGetLatestComparableMultiplesJobQuery,
+  useGetComparableMultiplesTableQuery,
+  useSaveComparableMultiplesTableMutation,
   useLazyGetValuationTaskQuery,
   useRemoveYearMutation,
   useLazyGetMyValuationTasksQuery,

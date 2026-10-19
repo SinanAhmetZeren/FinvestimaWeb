@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { setVpLang, setPendingTask, clearPendingTask } from '../slices/VpLangSlice.js';
 import { buildLedger } from './engine/ledger.js';
 import { parseWorkbookFile } from './engine/parseExcel.js';
 import { parsePdfFile, ledgerFromItems } from './engine/parsePdf.js';
@@ -9,9 +11,14 @@ import { defaultAssumptions, valuate, runRate } from './engine/valuation.js';
 import { runAudit } from './engine/audit.js';
 import { mUsd, pc } from './ui.jsx';
 import { RightColContext } from './rightColContext.js';
-import { L0Tasks, L1Inputs, L2Mapping } from './layers/Inputs.jsx';
-import { L3Balance, L4Income } from './layers/Statements.jsx';
-import { L5Assumptions, L6Valuation, L7Audit } from './layers/Valuation.jsx';
+import RailNav from './RailNav.jsx';
+import RailNavEn from './RailNav_en.jsx';
+import * as Inputs from './layers/Inputs.jsx';
+import * as InputsEn from './layers/Inputs_en.jsx';
+import * as Statements from './layers/Statements.jsx';
+import * as StatementsEn from './layers/Statements_en.jsx';
+import * as Valuation from './layers/Valuation.jsx';
+import * as ValuationEn from './layers/Valuation_en.jsx';
 
 const LAYERS = [
   { k:'L0', n:'İşler', m:'Değerleme seçimi' },
@@ -31,6 +38,7 @@ export default function ValuatorProEngine(){
   const [uploadTrialBalance] = useUploadTrialBalanceMutation();
   const [fetchUploadJob] = useLazyGetUploadJobQuery();
   const [fetchValuationTask] = useLazyGetValuationTaskQuery();
+  const dispatch = useDispatch();
   // Veri DB'den geliyor (L0'da task seçilince taze çekilir) — localStorage'da ayrıca
   // saklamıyoruz, her girişte sıfırdan başlanır, bayat/çelişkili veri görünmesin diye.
   const [st, setSt] = useState(EMPTY);
@@ -48,6 +56,10 @@ export default function ValuatorProEngine(){
       setTimeout(() => setUploadPoll(p => (p?.key === key ? null : p)), 5000);
     }
   };
+  const lang = useSelector(s => s.vpLang.lang);
+  const I = lang === 'en' ? InputsEn : Inputs;
+  const S = lang === 'en' ? StatementsEn : Statements;
+  const Val = lang === 'en' ? ValuationEn : Valuation;
   const [printing, setPrinting] = useState(false);
   const [rightColEl, setRightColEl] = useState(null);
   const [railOpen, setRailOpen] = useState(true);
@@ -115,6 +127,13 @@ export default function ValuatorProEngine(){
     setUploadPoll(null);
     up({ valuationTaskId: t.id, company: t.companyName, ledgers: [], pdfDocs: [], log: [] });
     const task = await fetchValuationTask(t.id).unwrap();
+    if (task.accountingStandard === 'UsGaap') {
+      // Bu motor Tekdüzen için — GAAP task seçildiğinde EN motoruna geçilir, o motor
+      // mount olunca bu task'ı kendisi seçip L1'e geçer (bkz. pendingTaskId effect'i).
+      dispatch(setPendingTask(t.id));
+      dispatch(setVpLang('en'));
+      return;
+    }
     const newLedgers = task.years.map(y => buildLedger(
       y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
       { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
@@ -124,6 +143,14 @@ export default function ValuatorProEngine(){
     up({ monthly });
     setLayer('L1');
   };
+
+  // Diğer motordan (EN) bir Tekdüzen task seçilip buraya yönlendirilmişse, mount olur
+  // olmaz o task'ı burada otomatik seç (ikinci tıklama gerekmesin diye).
+  const pendingTaskId = useSelector(s => s.vpLang.pendingTaskId);
+  useEffect(() => {
+    if (pendingTaskId) { dispatch(clearPendingTask()); selectTask({ id: pendingTaskId }); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onFiles = async (files) => {
     setBusy(true);
@@ -172,6 +199,7 @@ export default function ValuatorProEngine(){
           const completedJob = await pollUploadJob(jobId, job => flashPoll(job.status));
           const thisJobYears = new Set((completedJob.result?.years || []).map(y => y.year));
           const task = await fetchValuationTask(valuationTaskId).unwrap();
+          dispatch(setVpLang(task.accountingStandard === 'UsGaap' ? 'en' : 'tr'));
           const newLedgers = task.years.map(y => buildLedger(
             // Bakiye (db/cb) backend'in debitBalance/creditBalance alanından değil, Debit-Credit
             // farkından kendimiz hesaplanıyor — Gemini bu iki ayrı alanı tutarsız okuyabiliyor.
@@ -226,25 +254,9 @@ export default function ValuatorProEngine(){
   return (
     <RightColContext.Provider value={rightColEl}>
     <div className={'app vp-root'+(printing?' printing':'')}>
-      {railOpen && <nav className="rail" aria-label="Katmanlar">
-        <div className="brand">
-          <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="none" stroke="#B8862B" strokeWidth="1.5"/><path d="M7 8l6 11 6-11" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round"/></svg>
-          <div><b>VALUATOR</b><span>Firma değerleme motoru</span></div>
-        </div>
-        <ol className="layers">
-          {LAYERS.map(l => (
-            <li key={l.k}>
-              <button className={'layer'+(done[l.k]?' ok':'')} aria-current={layer===l.k} onClick={()=>setLayer(l.k)}>
-                <span className="lc">{l.k}</span>
-                <span><span className="ln">{l.n}</span><span className="lm">{l.m}</span></span>
-              </button>
-            </li>
-          ))}
-        </ol>
-        <div className="rfoot">
-          <div className="flow"><span>Girdi</span><i/><span>İşlem</span><i/><span>Çıktı</span></div>
-        </div>
-      </nav>}
+      {railOpen && (lang === 'en'
+        ? <RailNavEn layer={layer} setLayer={setLayer} done={done} taskSelected={!!st.valuationTaskId} />
+        : <RailNav layer={layer} setLayer={setLayer} done={done} taskSelected={!!st.valuationTaskId} />)}
       <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} style={{ left: railOpen ? 'var(--rail)' : 0 }} aria-label={railOpen?'Sol paneli gizle':'Sol paneli göster'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
 
       <div className="main">
@@ -268,14 +280,14 @@ export default function ValuatorProEngine(){
         <main className="work">
           {printing ? <PrintReport {...ctx} /> : (
             <>
-              {layer==='L0' && <L0Tasks {...ctx} />}
-              {layer==='L1' && <L1Inputs {...ctx} />}
-              {layer==='L2' && <L2Mapping {...ctx} />}
-              {layer==='L3' && <L3Balance {...ctx} />}
-              {layer==='L4' && <L4Income {...ctx} />}
-              {layer==='L5' && <L5Assumptions {...ctx} />}
-              {layer==='L6' && <L6Valuation {...ctx} />}
-              {layer==='L7' && <L7Audit {...ctx} />}
+              {layer==='L0' && <I.L0Tasks {...ctx} />}
+              {layer==='L1' && <I.L1Inputs {...ctx} />}
+              {layer==='L2' && <I.L2Mapping {...ctx} />}
+              {layer==='L3' && <S.L3Balance {...ctx} />}
+              {layer==='L4' && <S.L4Income {...ctx} />}
+              {layer==='L5' && <Val.L5Assumptions {...ctx} />}
+              {layer==='L6' && <Val.L6Valuation {...ctx} />}
+              {layer==='L7' && <Val.L7Audit {...ctx} />}
             </>
           )}
         </main>
@@ -293,11 +305,11 @@ function PrintReport(ctx){
     <div className="report">
       <h1>{ctx.st.company || 'Firma'} değerleme raporu</h1>
       <p className="rmeta">{new Date().toLocaleDateString('tr-TR')}. Tutarlar aksi belirtilmedikçe bin USD.</p>
-      <L6Valuation {...ctx} print />
-      <L3Balance {...ctx} print />
-      <L4Income {...ctx} print />
-      <L5Assumptions {...ctx} print />
-      <L7Audit {...ctx} print />
+      <Valuation.L6Valuation {...ctx} print />
+      <Statements.L3Balance {...ctx} print />
+      <Statements.L4Income {...ctx} print />
+      <Valuation.L5Assumptions {...ctx} print />
+      <Valuation.L7Audit {...ctx} print />
     </div>
   );
 }
