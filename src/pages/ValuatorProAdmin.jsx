@@ -18,6 +18,7 @@ export default function ValuatorProAdmin() {
   const [taskUserId, setTaskUserId] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [taskTitle, setTaskTitle] = useState("Değerleme");
+  const [accountingStandard, setAccountingStandard] = useState("Tekduzen");
 
   async function handleCreateUser(e) {
     e.preventDefault();
@@ -35,9 +36,9 @@ export default function ValuatorProAdmin() {
     if (!taskUserId || !companyName.trim()) { setMsg("Kullanıcı ve firma adı zorunlu."); return; }
     setMsg("");
     try {
-      const t = await adminCreateTask({ userId: taskUserId, companyName, taskTitle }).unwrap();
-      setMsg(`Task oluşturuldu: ${t.companyName} — ${t.title}`);
-      setCompanyName(""); setTaskTitle("Değerleme");
+      const t = await adminCreateTask({ userId: taskUserId, companyName, taskTitle, accountingStandard }).unwrap();
+      setMsg(`Task oluşturuldu: ${t.companyName} — ${t.title} (${t.accountingStandard})`);
+      setCompanyName(""); setTaskTitle("Değerleme"); setAccountingStandard("Tekduzen");
     } catch (err) { setMsg(err.data || err.message || 'Task oluşturulamadı.'); }
   }
 
@@ -72,18 +73,23 @@ export default function ValuatorProAdmin() {
               </select>
               <input className="ninp" style={{ width: 200, textAlign: "left" }} placeholder="Firma adı" value={companyName} onChange={e => setCompanyName(e.target.value)} required />
               <input className="ninp" style={{ width: 150, textAlign: "left" }} placeholder="Task başlığı" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} />
+              <select className="csel" value={accountingStandard} onChange={e => setAccountingStandard(e.target.value)}>
+                <option value="Tekduzen">Tekdüzen</option>
+                <option value="UsGaap">GAAP</option>
+              </select>
               <button className="btn" type="submit" disabled={creatingTask}>Task oluştur</button>
             </form>
           </Panel>
 
           <Panel title={`Açılmış task'lar (${tasks.length})`} flush>
             <div className="scroll"><table className="g">
-              <thead><tr className="hd solo"><th className="lbl">Firma</th><th>Başlık</th><th>Kullanıcı</th><th>Tarih</th></tr></thead>
+              <thead><tr className="hd solo"><th className="lbl">Firma</th><th>Başlık</th><th>Standart</th><th>Kullanıcı</th><th>Tarih</th></tr></thead>
               <tbody>
                 {tasks.map(t => (
                   <tr key={t.id}>
                     <td className="lbl">{t.companyName}</td>
                     <td>{t.title}</td>
+                    <td><span className={'tag' + (t.accountingStandard === 'UsGaap' ? ' teal' : '')}>{t.accountingStandard === 'UsGaap' ? 'GAAP' : 'TDH'}</span></td>
                     <td>{users.find(u => u.id === t.userId)?.userName || t.userId}</td>
                     <td>{new Date(t.createdAt).toLocaleString('tr-TR')}</td>
                   </tr>

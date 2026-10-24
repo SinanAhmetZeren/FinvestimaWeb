@@ -102,10 +102,10 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       providesTags: ["VPUser"],
     }),
     adminCreateTask: builder.mutation({
-      query: ({ userId, companyName, taskTitle }) => ({
+      query: ({ userId, companyName, taskTitle, accountingStandard }) => ({
         url: "/api/ValuatorPro/admin/valuation-tasks",
         method: "POST",
-        body: { userId, companyName, taskTitle },
+        body: { userId, companyName, taskTitle, accountingStandard },
       }),
       invalidatesTags: ["VPTask"],
     }),

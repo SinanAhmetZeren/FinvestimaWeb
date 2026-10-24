@@ -23,7 +23,8 @@ export function L0Tasks({ st, selectTask }) {
       <Panel title="Your valuations" sub="Select the engagement you want to continue">
         <div className="taskgrid">
           {tasks.map(t => (
-            <button key={t.id} type="button" className={'taskcard' + (st.valuationTaskId === t.id ? ' sel' : '')} onClick={() => selectTask(t)}>
+            <button key={t.id} type="button" style={{position:'relative'}} className={'taskcard' + (st.valuationTaskId === t.id ? ' sel' : '')} onClick={() => selectTask(t)}>
+              <span className={'tag'+(t.accountingStandard==='UsGaap'?' teal':'')} style={{position:'absolute', top:10, right:10}}>{t.accountingStandard==='UsGaap'?'GAAP':'TDH'}</span>
               <span className="tc-co">{t.companyName}</span>
               <span className="tc-ti">{t.title}</span>
               <span className="tc-go">{st.valuationTaskId === t.id ? 'Continue' : 'Select'} →</span>
