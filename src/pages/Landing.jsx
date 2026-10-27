@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "../landing.css";
 import logo from "../assets/finvestimaLogo.jpeg";
-import SiteNav from "../components/SiteNav";
 
 const LAYERS = [
   {
@@ -174,8 +173,6 @@ export default function Landing() {
 
   return (
     <div className="landing-root" ref={rootRef}>
-      <SiteNav />
-
       {/* ══ HERO ══ */}
       <header className="hero" id="top">
         <div className="wrap hgrid">

@@ -11,6 +11,7 @@ import ValuatorProAdmin from "./pages/ValuatorProAdmin";
 import Tekduzen from "./pages/Tekduzen";
 import Landing from "./pages/Landing";
 import Motor from "./pages/Motor";
+import TopBar from "./components/TopBar";
 
 function PrivateRoute({ children }) {
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
@@ -29,6 +30,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastContainer position="top-center" autoClose={4000} />
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <TopBar />
+      <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
       <Routes>
         <Route path="/login" element={<AuthPage />} />
         <Route path="/" element={<Landing />} />
@@ -81,6 +85,8 @@ export default function App() {
           }
         />
       </Routes>
+      </div>
+      </div>
     </BrowserRouter>
   );
 }

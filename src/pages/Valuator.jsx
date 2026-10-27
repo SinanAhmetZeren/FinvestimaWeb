@@ -1,5 +1,4 @@
 import "../valuator.css";
-import TopBar from "../components/TopBar";
 import { ValuatorProvider, useValuator } from "../store/valuator";
 import { TrailProvider } from "../components/SourceTrail";
 import { Rail } from "../components/Rail";
@@ -38,7 +37,6 @@ function Workbench() {
 export default function Valuator() {
   return (
     <>
-      <TopBar />
       <div className="valuator-root">
         <ValuatorProvider>
           <TrailProvider>

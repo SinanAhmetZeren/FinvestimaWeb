@@ -141,12 +141,11 @@ export function PdfUpload({ up, log, valuationTaskId }) {
 
   return (
     <div>
-      <div className={'drop' + (isLoadingPreview ? ' busy' : '')} onClick={() => fileInputRef.current?.click()} role="button" tabIndex={0}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}>
+      <label className={'drop' + (isLoadingPreview ? ' busy' : '')} htmlFor="pdf-upload-input">
         <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 23V7m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><path d="M6 21v5a2 2 0 002 2h18a2 2 0 002-2v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
         <b>{isLoadingPreview ? 'Önizleme hazırlanıyor…' : "PDF dosyasını seçmek için tıklayın"}</b>
-        <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" hidden onChange={handleFileChange} />
-      </div>
+        <input ref={fileInputRef} id="pdf-upload-input" type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileChange} />
+      </label>
 
       {cropState && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,28,51,.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

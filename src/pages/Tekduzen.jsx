@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import TopBar from "../components/TopBar";
 import { tekduzenRows } from "../data/tekduzenHesaplari";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -42,7 +41,6 @@ export default function Tekduzen() {
     <div className="App">
       <header className="App-header">
         <div style={styles.pageWrap}>
-          <TopBar />
           <div style={styles.page}>
             <div style={styles.app}>
               <div style={styles.hd}>
@@ -107,7 +105,7 @@ const styles = {
   pageWrap: {
     display: "flex",
     flexDirection: "column",
-    minHeight: "100vh",
+    minHeight: "100%",
     width: "100%",
   },
   page: {

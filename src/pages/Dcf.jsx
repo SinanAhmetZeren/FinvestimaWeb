@@ -1,7 +1,6 @@
 import React, { useState, useRef } from "react";
 import { toast } from "react-toastify";
 import { useCalculateDcfMutation } from "../slices/DcfSlice";
-import TopBar from "../components/TopBar";
 
 const EMPTY_ROW_COUNT = 8;
 
@@ -99,7 +98,6 @@ export default function Dcf() {
     <div className="App">
       <header className="App-header">
         <div style={styles.pageWrap}>
-          <TopBar />
           <div style={styles.page}>
             <div style={styles.app}>
               <div style={styles.hd}>
@@ -247,7 +245,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     width: "100%",
-    height: "100vh",
+    height: "100%",
     overflow: "hidden",
   },
   page: {

@@ -6,7 +6,6 @@ import {
   useStartExtractionJobMutation,
   useLazyGetExtractionJobQuery,
 } from "../slices/AiSlice";
-import TopBar from "../components/TopBar";
 import { loadPdf, renderPdfPageToCanvas, imageFileToCanvas, analyzeCropSuggestion } from "../lib/pdfPreview";
 
 function canvasToBase64(canvas) {
@@ -284,7 +283,6 @@ export default function Extract() {
     <div className="App">
       <header className="App-header">
         <div style={styles.pageWrap}>
-          <TopBar />
           <div style={styles.page}>
             <div style={styles.app}>
               <div style={styles.hd}>
@@ -981,7 +979,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     width: "100%",
-    height: "100vh",
+    height: "100%",
     overflow: "hidden",
   },
   page: {

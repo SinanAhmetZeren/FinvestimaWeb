@@ -82,7 +82,8 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
             </div>
             <p className="muted" style={{ fontSize: 13, width: '70%', marginTop: 8, marginLeft: '17.5%', marginRight: '12.5%', textAlign: 'left' }}>Excluded codes are stripped by the system and never sent to third parties for processing. Data is anonymized according to your selection before being written to the database.</p>
           </div>
-          <div className={'drop' + (over ? ' over' : '') + (busy ? ' busy' : '') + (st.maxCodeDigits == null ? ' disabled' : '')}
+          <label className={'drop' + (over ? ' over' : '') + (busy ? ' busy' : '') + (st.maxCodeDigits == null ? ' disabled' : '')}
+            htmlFor="mizan-upload-input-en"
             style={{
               width: '65%', margin: '0 auto',
               ...(uploadPoll ? {
@@ -92,15 +93,13 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
               } : {}),
             }}
             onDragOver={e => { e.preventDefault(); if (st.maxCodeDigits != null) setOver(true); }} onDragLeave={() => setOver(false)}
-            onDrop={e => { if (st.maxCodeDigits != null) drop(e); else e.preventDefault(); }}
-            onClick={() => { if (st.maxCodeDigits != null) inp.current?.click(); }} role="button" tabIndex={0}
-            onKeyDown={e => { if (st.maxCodeDigits != null && (e.key === 'Enter' || e.key === ' ')) inp.current?.click(); }}>
+            onDrop={e => { e.preventDefault(); if (st.maxCodeDigits != null) drop(e); }}>
             <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 23V7m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><path d="M6 21v5a2 2 0 002 2h18a2 2 0 002-2v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
             <b style={uploadPoll ? { color: POLL_COLORS[uploadPoll.status] || 'var(--faint)' } : undefined}>
               {uploadPoll ? (POLL_LABELS[uploadPoll.status] || uploadPoll.status) : busy ? 'Reading files…' : st.maxCodeDigits == null ? 'Choose a code depth above first' : 'Drop files here or click to choose'}
             </b>
-            <input ref={inp} type="file" multiple disabled={st.maxCodeDigits == null} accept=".xlsx,.xls,.xlsm,.csv,.ods" hidden onChange={e => { onFiles([...e.target.files]); e.target.value = ''; }} />
-          </div>
+            <input ref={inp} id="mizan-upload-input-en" type="file" multiple disabled={st.maxCodeDigits == null} accept=".xlsx,.xls,.xlsm,.csv,.ods" onChange={e => { onFiles([...e.target.files]); e.target.value = ''; }} />
+          </label>
         </>}
 
         {fileKind === 'pdf' && <PdfUpload up={up} log={log} valuationTaskId={st.valuationTaskId} />}

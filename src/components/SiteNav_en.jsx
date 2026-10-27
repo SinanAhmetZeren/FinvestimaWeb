@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { updateAsLoggedOut } from "../slices/UserSlice";
-import { setVpLang } from "../slices/VpLangSlice";
 import "../siteNav.css";
 import logo from "../assets/finvestimaLogo.jpeg";
 
@@ -14,7 +13,7 @@ export default function SiteNavEn() {
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
-  const vpLang = useSelector((state) => state.vpLang.lang);
+  const isAdmin = useSelector((state) => state.users.isAdmin);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -44,10 +43,11 @@ export default function SiteNavEn() {
           <a href="/#fiyat">Pricing</a>
           <a href="/#sss">FAQ</a>
           <a href="/#demo" className="cta-link">Request screening</a>
-          <div className="lang-seg" role="group">
-            <button type="button" className={vpLang === "tr" ? "sel" : ""} onClick={() => dispatch(setVpLang("tr"))}>TR</button>
-            <button type="button" className={vpLang === "en" ? "sel" : ""} onClick={() => dispatch(setVpLang("en"))}>EN</button>
-          </div>
+          {isAdmin && (
+            <Link to="/valuator-pro-admin" className={"motor-link" + (location.pathname === "/valuator-pro-admin" ? " active" : "")}>
+              Admin
+            </Link>
+          )}
           {isLoggedIn && (
             <button type="button" className="navlink-btn" onClick={handleLogout}>
               Log out

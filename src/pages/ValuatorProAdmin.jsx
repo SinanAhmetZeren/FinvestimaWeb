@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import TopBar from "../components/TopBar";
 import { Panel, Stat } from "../valuator-pro/ui.jsx";
 import { useAdminCreateUserMutation, useAdminListUsersQuery, useAdminCreateTaskMutation, useAdminListTasksQuery } from "../slices/ValuatorProSlice";
 import "../valuator-pro/styles.css";
@@ -44,8 +43,7 @@ export default function ValuatorProAdmin() {
 
   return (
     <div className="App vp-root">
-      <header className="App-header" style={{ minHeight: "100vh", background: "var(--bg)" }}>
-        <TopBar />
+      <header className="App-header" style={{ minHeight: "100%", background: "var(--bg)" }}>
         <div style={{ maxWidth: 820, margin: "0 auto", padding: "24px 16px 60px", textAlign: "left", display: "flex", flexDirection: "column", gap: 14 }}>
           <h2 style={{ color: "var(--navy)", margin: "4px 0 0" }}>Valuator Pro — Admin</h2>
           {msg && <div className="tag" style={{ padding: "8px 12px", fontSize: 12.5, width: "fit-content" }}>{String(msg)}</div>}

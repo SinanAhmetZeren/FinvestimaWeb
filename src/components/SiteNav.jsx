@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { updateAsLoggedOut } from "../slices/UserSlice";
-import { setVpLang } from "../slices/VpLangSlice";
 import "../siteNav.css";
 import logo from "../assets/finvestimaLogo.jpeg";
 
@@ -14,13 +13,19 @@ export default function SiteNav() {
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
   const isLoggedIn = useSelector((state) => state.users.isLoggedIn);
-  const vpLang = useSelector((state) => state.vpLang.lang);
+  const isAdmin = useSelector((state) => state.users.isAdmin);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   function handleLogout() {
     dispatch(updateAsLoggedOut());
     navigate("/login");
+  }
+
+  function go(e, to) {
+    e.preventDefault();
+    setNavOpen(false);
+    navigate(to);
   }
 
   return (
@@ -33,10 +38,15 @@ export default function SiteNav() {
           ☰
         </button>
         <div className={"navlinks" + (navOpen ? " open" : "")} onClick={() => setNavOpen(false)}>
+          {isAdmin && (
+            <a href="/valuator-pro-admin" className={"motor-link" + (location.pathname === "/valuator-pro-admin" ? " active" : "")} onClick={e => go(e, "/valuator-pro-admin")}>
+              Admin
+            </a>
+          )}
           {MOTOR_LINKS.map((l) => (
-            <Link key={l.to} to={l.to} className={"motor-link" + (location.pathname === l.to ? " active" : "")}>
+            <a key={l.to} href={l.to} className={"motor-link" + (location.pathname === l.to ? " active" : "")} onClick={e => go(e, l.to)}>
               {l.label}
-            </Link>
+            </a>
           ))}
           <a href="/#nasil">Nasıl çalışır</a>
           <a href="/#mercek">Üç mercek</a>
@@ -44,14 +54,10 @@ export default function SiteNav() {
           <a href="/#fiyat">Fiyatlandırma</a>
           <a href="/#sss">SSS</a>
           <a href="/#demo" className="cta-link">Ön tarama isteyin</a>
-          <div className="lang-seg" role="group">
-            <button type="button" className={vpLang === "tr" ? "sel" : ""} onClick={() => dispatch(setVpLang("tr"))}>TR</button>
-            <button type="button" className={vpLang === "en" ? "sel" : ""} onClick={() => dispatch(setVpLang("en"))}>EN</button>
-          </div>
           {isLoggedIn && (
-            <button type="button" className="navlink-btn" onClick={handleLogout}>
+            <a href="/login" className="navlink-btn" onClick={e => { e.preventDefault(); handleLogout(); }}>
               Log out
-            </button>
+            </a>
           )}
         </div>
       </div>

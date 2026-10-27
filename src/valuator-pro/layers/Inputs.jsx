@@ -84,7 +84,8 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
             </div>
             <p className="muted" style={{ fontSize: 13, width: '70%', marginTop: 8, marginLeft: '17.5%', marginRight: '12.5%', textAlign: 'left' }}>Hariç tutulan kodlar sistem tarafından ayıklanır ve veri işleme için 3. taraflara gönderilmez. Bilgiler seçiminiz doğrultusunda önce anonimleştirilir sonra veritabanına yazılır.</p>
           </div>
-          <div className={'drop' + (over ? ' over' : '') + (busy ? ' busy' : '') + (st.maxCodeDigits == null ? ' disabled' : '')}
+          <label className={'drop' + (over ? ' over' : '') + (busy ? ' busy' : '') + (st.maxCodeDigits == null ? ' disabled' : '')}
+            htmlFor="mizan-upload-input"
             style={{
               width: '65%', margin: '0 auto',
               ...(uploadPoll ? {
@@ -94,15 +95,13 @@ export function L1Inputs({ st, up, setSt, onFiles, loadSample, reset, busy, rawL
               } : {}),
             }}
             onDragOver={e => { e.preventDefault(); if (st.maxCodeDigits != null) setOver(true); }} onDragLeave={() => setOver(false)}
-            onDrop={e => { if (st.maxCodeDigits != null) drop(e); else e.preventDefault(); }}
-            onClick={() => { if (st.maxCodeDigits != null) inp.current?.click(); }} role="button" tabIndex={0}
-            onKeyDown={e => { if (st.maxCodeDigits != null && (e.key === 'Enter' || e.key === ' ')) inp.current?.click(); }}>
+            onDrop={e => { e.preventDefault(); if (st.maxCodeDigits != null) drop(e); }}>
             <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 23V7m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><path d="M6 21v5a2 2 0 002 2h18a2 2 0 002-2v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
             <b style={uploadPoll ? { color: POLL_COLORS[uploadPoll.status] || 'var(--faint)' } : undefined}>
               {uploadPoll ? (POLL_LABELS[uploadPoll.status] || uploadPoll.status) : busy ? 'Dosyalar okunuyor…' : st.maxCodeDigits == null ? 'Önce yukarıdan bir kod derinliği seçin' : 'Dosyaları buraya bırakın ya da seçmek için tıklayın'}
             </b>
-            <input ref={inp} type="file" multiple disabled={st.maxCodeDigits == null} accept=".xlsx,.xls,.xlsm,.csv,.ods" hidden onChange={e => { onFiles([...e.target.files]); e.target.value = ''; }} />
-          </div>
+            <input ref={inp} id="mizan-upload-input" type="file" multiple disabled={st.maxCodeDigits == null} accept=".xlsx,.xls,.xlsm,.csv,.ods" onChange={e => { onFiles([...e.target.files]); e.target.value = ''; }} />
+          </label>
         </>}
 
         {fileKind === 'pdf' && <PdfUpload up={up} log={log} valuationTaskId={st.valuationTaskId} />}
@@ -301,13 +300,14 @@ export function L2Mapping({ st, up, ledgers, hist }) {
             <thead><tr className="hd solo"><th className="lbl">Hesap</th><th>Tabloda karşılığı</th><th className="n">Borç toplamı</th><th className="n">Alacak toplamı</th><th className="n">Net bakiye</th></tr></thead>
             <tbody>
               {classes.map(([c, n]) => {
-                const rs = rows.filter(r => r.code[0] === c && (!hideZero || Math.abs(r.net) > 0.5 || c === '6' || c === '7') && (!onlyUn || (!r.map && Math.abs(r.net) > 0.5)));
+                const allRs = rows.filter(r => r.code[0] === c);
+                const rs = allRs.filter(r => (!hideZero || Math.abs(r.net) > 0.5 || c === '6' || c === '7') && (!onlyUn || (!r.map && Math.abs(r.net) > 0.5)));
                 if (!rs.length) return null;
                 const isOpen = open[c] ?? (c !== '9' && c !== '8');
-                const tot = rs.reduce((s, r) => s + r.net, 0);
-                const totDt = rs.reduce((s, r) => s + r.dt, 0), totCt = rs.reduce((s, r) => s + r.ct, 0);
+                const tot = allRs.reduce((s, r) => s + r.net, 0);
+                const totDt = allRs.reduce((s, r) => s + r.dt, 0), totCt = allRs.reduce((s, r) => s + r.ct, 0);
                 return [
-                  <tr key={c} className={'grp' + (isOpen ? ' open' : '')} onClick={() => setOpen(o => ({ ...o, [c]: !isOpen }))}><td className="lbl"><span className="caret">▸</span> {c} · {n}</td><td>{rs.length} hesap</td><td className="n">{nf(totDt / 1000)}</td><td className="n">{nf(totCt / 1000)}</td><td className="n">{par(tot / 1000)}</td></tr>,
+                  <tr key={c} className={'grp' + (isOpen ? ' open' : '')} onClick={() => setOpen(o => ({ ...o, [c]: !isOpen }))}><td className="lbl"><span className="caret">▸</span> {c} · {n}</td><td>{allRs.length} hesap{allRs.length !== rs.length && <span className="muted small"> ({allRs.length - rs.length} gizlendi)</span>}</td><td className="n">{nf(totDt / 1000)}</td><td className="n">{nf(totCt / 1000)}</td><td className="n">{par(tot / 1000)}</td></tr>,
                   ...(isOpen ? rs.map(r => (
                     <tr key={r.code} className={'kid' + (r.dirty ? ' warnrow' : '')}>
                       <td className="lbl"><code>{r.code}</code> {r.name || accName(r.code)}{r.isManualOverride && <Tag c="gold">elle düzenlendi</Tag>}{r.dirty && <Tag c="gold">kaydedilmedi</Tag>}</td>

@@ -1,5 +1,4 @@
 import React from "react";
-import TopBar from "../components/TopBar";
 import motorIcon from "../assets/motorIcon.jpg";
 
 export default function Motor() {
@@ -7,7 +6,6 @@ export default function Motor() {
     <div className="App">
       <header className="App-header">
         <div style={styles.pageWrap}>
-          <TopBar />
           <div style={styles.page}>
             <img src={motorIcon} alt="Motor" style={styles.image} />
           </div>
@@ -21,7 +19,7 @@ const styles = {
   pageWrap: {
     display: "flex",
     flexDirection: "column",
-    minHeight: "100vh",
+    minHeight: "100%",
     width: "100%",
   },
   page: {

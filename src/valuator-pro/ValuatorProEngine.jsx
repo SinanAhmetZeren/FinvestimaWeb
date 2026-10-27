@@ -135,7 +135,7 @@ export default function ValuatorProEngine(){
       return;
     }
     const newLedgers = task.years.map(y => buildLedger(
-      y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
+      [...y.accounts, ...(y.subAccounts || [])].map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
       { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
     ));
     if (newLedgers.length) up(s => ({ ledgers: newLedgers }));
@@ -203,7 +203,9 @@ export default function ValuatorProEngine(){
           const newLedgers = task.years.map(y => buildLedger(
             // Bakiye (db/cb) backend'in debitBalance/creditBalance alanından değil, Debit-Credit
             // farkından kendimiz hesaplanıyor — Gemini bu iki ayrı alanı tutarsız okuyabiliyor.
-            y.accounts.map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
+            // subAccounts: Katkı seviyeleri (Statements.jsx) için 6/7 sınıfı hesapların 3 haneden
+            // derin, kümelenmemiş kırılım satırları — accounts'taki 3'lü köklerin yanına eklenir.
+            [...y.accounts, ...(y.subAccounts || [])].map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
             { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
           ));
           up(s => {
@@ -255,8 +257,8 @@ export default function ValuatorProEngine(){
     <RightColContext.Provider value={rightColEl}>
     <div className={'app vp-root'+(printing?' printing':'')}>
       {railOpen && (lang === 'en'
-        ? <RailNavEn layer={layer} setLayer={setLayer} done={done} taskSelected={!!st.valuationTaskId} />
-        : <RailNav layer={layer} setLayer={setLayer} done={done} taskSelected={!!st.valuationTaskId} />)}
+        ? <RailNavEn layer={layer} setLayer={setLayer} done={done} taskSelected={!!st.valuationTaskId || st.ledgers.length > 0} />
+        : <RailNav layer={layer} setLayer={setLayer} done={done} taskSelected={!!st.valuationTaskId || st.ledgers.length > 0} />)}
       <button type="button" className={'railToggle'+(railOpen?'':' collapsed')} style={{ left: railOpen ? 'var(--rail)' : 0 }} aria-label={railOpen?'Sol paneli gizle':'Sol paneli göster'} onClick={()=>setRailOpen(v=>!v)}>{railOpen?'‹':'›'}</button>
 
       <div className="main">
