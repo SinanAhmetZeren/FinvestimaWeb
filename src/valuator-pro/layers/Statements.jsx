@@ -21,7 +21,8 @@ export function L3Balance({ hist, st, up, print }){
     return () => window.removeEventListener('keydown', onKey);
   }, [modalKey]);
   if (!hist.length) return noData;
-  const conv = (h, v) => cur==='TL' ? v/1000 : v/(h.fx.end||1)/1000;
+  const displayCur = print ? 'USD' : cur;
+  const conv = (h, v) => displayCur==='TL' ? v/1000 : v/(h.fx.end||1)/1000;
   const head = hist.map(h=>({ l:String(h.year) }));
   const rows = [];
   hist[0].bs.secs.forEach((s, si) => {
@@ -67,14 +68,16 @@ export function L3Balance({ hist, st, up, print }){
     { l:'Yabancı kaynak / aktif', v:K('lev'), f:pc, formula:'(KVYK + UVYK) / Toplam Aktif', ratioParts: h=>[{l:'KVYK + UVYK',v:h.bs.STL+h.bs.LTL},{l:'Toplam Aktif',v:h.bs.TA}], f2:pc },
     { l:'Özkaynak kârlılığı', v:K('roe'), f:pc, formula:'Net Dönem Kârı / Özkaynaklar', ratioParts: h=>[{l:'Net Dönem Kârı',v:h.is.net},{l:'Özkaynaklar',v:h.bs.EQ}], f2:pc },
   ];
-  const unit = cur==='TL' ? 'bin TL' : "bin USD, yıl sonu kuru";
+  const unit = displayCur==='TL' ? 'bin TL' : "bin USD, yıl sonu kuru";
   const last = hist[hist.length-1];
   const body = (<>
     <Panel title="Bilanço özeti" sub={unit} right={!print && <Seg small value={cur} onChange={setCur} options={[{v:'TL',l:'TL'},{v:'USD',l:'USD'}]} />} flush>
       <FinTable head={head} rows={rows} firstLabel="" onRowClick={r=>setModalKey(r)} note={cur==='USD' ? 'Bilanço kalemleri yıl sonu kuruyla çevrildi: '+hist.map(h=>`${h.year} ${nf(h.fx.end,4)}`).join(', ')+'.' : 'Tekdüzen hesap planı gruplarıyla, mizan net bakiyelerinden üretildi.'} />
     </Panel>
-    <Panel title="Değerlemeye giden bilanço kalemleri" sub={unit} flush><FinTable head={head} rows={vrows} onRowClick={r=>setModalKey(r)} /></Panel>
-    <Panel title="Finansal oranlar" flush><FinTable head={head} rows={krows} fmt={x=>nf(x,2)} onRowClick={r=>setModalKey(r)} /></Panel>
+    <div className="print-page">
+      <Panel title="Değerlemeye giden bilanço kalemleri" sub={unit} flush><FinTable head={head} rows={vrows} onRowClick={r=>setModalKey(r)} /></Panel>
+      <Panel title="Finansal oranlar" flush><FinTable head={head} rows={krows} fmt={x=>nf(x,2)} onRowClick={r=>setModalKey(r)} /></Panel>
+    </div>
   </>);
   if (print) return <div className="left">{body}</div>;
 
@@ -194,7 +197,8 @@ export function L4Income({ hist, st, up, print }){
   useEffect(() => { if (daOverrideData) up({ daOverride: Object.fromEntries(daOverrideData.map(r => [r.year, r.amount])) }); }, [daOverrideData]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (addbacksData) up({ addbacks: addbacksData.map(a => ({ id: a.id, description: a.description || a.name || '', year: a.year, tl: a.amount, currency: a.currency, ev: a.hasEvidence, on: a.isActive })) }); }, [addbacksData]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!hist.length) return noData;
-  const c = (h, v) => mode==='TL' ? v/1000 : mode==='USD' ? v/(h.fx.avg||1)/1000 : v/(h.is.netSales||1);
+  const displayMode = print ? 'USD' : mode;
+  const c = (h, v) => displayMode==='TL' ? v/1000 : displayMode==='USD' ? v/(h.fx.avg||1)/1000 : v/(h.is.netSales||1);
   const fmt = mode==='PCT' ? (x=>pc(x)) : par;
   const head = hist.map(h=>({ l: String(h.year)+(h.months<12?` (${h.months} ay)`:'') }));
   const R = (l, f, cls, tag, codes) => ({ l, v: hist.map(h=>c(h, f(h))), cls, tag, codes });
@@ -228,7 +232,7 @@ export function L4Income({ hist, st, up, print }){
   const setCls = (d, v) => up(s => ({ contrib: { ...s.contrib, [d]: v } }));
   const lastU = hist[hist.length-1].usd;
   const recon = hist.map(h => { const ms = st.monthly.filter(m=>m.y===h.year); return ms.length===12 ? { y:h.year, rep: ms.reduce((s,m)=>s+m.rev,0), miz: h.is.netSales, mat: ms.reduce((s,m)=>s+m.mat,0), mat7: h.is.cost7.mat } : null; }).filter(Boolean);
-  const unit = mode==='TL' ? 'bin TL' : mode==='USD' ? 'bin USD, yıl ortalaması kuru' : 'net satışlara oran';
+  const unit = displayMode==='TL' ? 'bin TL' : displayMode==='USD' ? 'bin USD, yıl ortalaması kuru' : 'net satışlara oran';
 
   const body = (<>
     <Panel title="Normalize gelir tablosu" sub={unit} right={!print && <Seg small value={mode} onChange={setMode} options={[{v:'TL',l:'TL'},{v:'USD',l:'USD'},{v:'PCT',l:'% ciro'}]} />} flush>

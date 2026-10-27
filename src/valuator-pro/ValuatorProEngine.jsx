@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { setVpLang, setPendingTask, clearPendingTask } from '../slices/VpLangSlice.js';
 import { buildLedger } from './engine/ledger.js';
@@ -11,6 +12,7 @@ import { valuate, runRate } from './engine/valuation.js';
 import { runAudit } from './engine/audit.js';
 import { mUsd, pc } from './ui.jsx';
 import { RightColContext } from './rightColContext.js';
+import logo from '../assets/finvestimaLogo.jpeg';
 import RailNav from './RailNav.jsx';
 import RailNavEn from './RailNav_en.jsx';
 import * as Inputs from './layers/Inputs.jsx';
@@ -300,38 +302,40 @@ export default function ValuatorProEngine(){
         </div>
         */}
         <main className="work">
-          {printing ? <PrintReport {...ctx} /> : (
-            <>
-              {layer==='L0' && <I.L0Tasks {...ctx} />}
-              {layer==='L1' && <I.L1Inputs {...ctx} />}
-              {layer==='L2' && <I.L2Mapping {...ctx} />}
-              {layer==='L3' && <S.L3Balance {...ctx} />}
-              {layer==='L4' && <S.L4Income {...ctx} />}
-              {layer==='L5' && <Val.L5Assumptions {...ctx} />}
-              {layer==='L6' && <Val.L6Valuation {...ctx} />}
-              {layer==='L7' && <Val.L7Audit {...ctx} />}
-            </>
-          )}
+          {layer==='L0' && <I.L0Tasks {...ctx} />}
+          {layer==='L1' && <I.L1Inputs {...ctx} />}
+          {layer==='L2' && <I.L2Mapping {...ctx} />}
+          {layer==='L3' && <S.L3Balance {...ctx} />}
+          {layer==='L4' && <S.L4Income {...ctx} />}
+          {layer==='L5' && <Val.L5Assumptions {...ctx} />}
+          {layer==='L6' && <Val.L6Valuation {...ctx} />}
+          {layer==='L7' && <Val.L7Audit {...ctx} />}
         </main>
       </div>
 
       <button type="button" className={'rightColToggle'+(rightOpen?'':' collapsed')} style={{ right: rightOpen ? 'var(--insp)' : 0 }} aria-label={rightOpen?'Sağ paneli gizle':'Sağ paneli göster'} onClick={()=>setRightOpen(v=>!v)}>{rightOpen?'›':'‹'}</button>
       <aside className={'rightCol'+(rightOpen?'':' collapsed')} aria-label="Sağ panel" ref={setRightColEl}></aside>
     </div>
+    {printing && createPortal(
+      <div className="print-report-root vp-root">
+        <div className="report-cover">
+          <img src={logo} alt="Finvestima" className="report-cover-logo" />
+          <h1>{st.company || 'Firma'} değerleme raporu</h1>
+          <p>{new Date().toLocaleDateString('tr-TR')} · Tutarlar bin USD</p>
+        </div>
+        <S.L3Balance {...ctx} print />
+        <div className="print-page">
+          <img src={logo} alt="Finvestima" className="print-logo" />
+          <S.L4Income {...ctx} print />
+        </div>
+        <div className="print-page"><Val.L5Assumptions {...ctx} print /></div>
+        <div className="print-page"><Val.L6Valuation {...ctx} print /></div>
+        <div className="print-page"><Val.PrintAssumptions {...ctx} /></div>
+        <div className="print-page"><Val.L7Audit {...ctx} print /></div>
+      </div>,
+      document.body
+    )}
     </RightColContext.Provider>
   );
 }
 
-function PrintReport(ctx){
-  return (
-    <div className="report">
-      <h1>{ctx.st.company || 'Firma'} değerleme raporu</h1>
-      <p className="rmeta">{new Date().toLocaleDateString('tr-TR')}. Tutarlar aksi belirtilmedikçe bin USD.</p>
-      <Valuation.L6Valuation {...ctx} print />
-      <Statements.L3Balance {...ctx} print />
-      <Statements.L4Income {...ctx} print />
-      <Valuation.L5Assumptions {...ctx} print />
-      <Valuation.L7Audit {...ctx} print />
-    </div>
-  );
-}

@@ -530,3 +530,73 @@ export function L7Audit({ hist, st, up, V, audit, print, setPrinting }){
     </Insp>
   </>);
 }
+
+
+// Rapor eki — L5/L6'daki sağ kolon (sürücüler/varsayımlar girdileri) için. Bu değerler L5/L6'nın
+// kendi "body"sinde (Projeksiyon/Sürücü sınaması/Değerleme tabloları) görünmüyor, sadece sağdaki
+// panelde elle girilen ham sayılar olarak duruyor — rapora ayrı bir sayfa olarak ekleniyor.
+export function PrintAssumptions({ hist, st, V }){
+  if (!hist.length || !st.asm || !V) return null;
+  const A = st.asm, B = V.B, W = V.P.W;
+  const SCEN = { pess:'Kötümser', base:'Baz', opt:'İyimser', custom:'Elle değiştirilmiş' };
+  return (
+    <div className="left">
+      <Panel title="Varsayım girdileri" sub={`Baz yıl ${B.year}, ${A.N} yıllık projeksiyon · Senaryo: ${SCEN[A.scenario]||A.scenario}`} flush>
+        <div className="scroll"><table className="g">
+          <thead><tr className="hd solo"><th className="lbl">Gelir büyümesi</th><th className="n">Oran</th></tr></thead>
+          <tbody>{A.growth.slice(0, A.N).map((g,i) => (
+            <tr key={i}><td className="lbl">{B.year+i+1}</td><td className="n">{pc(g)}</td></tr>))}</tbody>
+        </table></div>
+      </Panel>
+      <Panel title={`Maliyet / ciro hedefi (${B.year+A.N})`} flush>
+        <div className="scroll"><table className="g">
+          <thead><tr className="hd solo"><th className="lbl">Kalem</th><th className="n">Baz</th><th className="n">Hedef</th></tr></thead>
+          <tbody>{COSTS.filter(([k])=>k!=='rnd'||A.costs.rnd.s>0).map(([k,n]) => (
+            <tr key={k}><td className="lbl">{n}</td><td className="n">{pc(A.costs[k].s)}</td><td className="n">{pc(A.costs[k].e)}</td></tr>))}</tbody>
+        </table></div>
+      </Panel>
+      <Panel title="Yatırım, sermaye, vergi" flush>
+        <div className="scroll"><table className="g"><tbody>
+          <tr><td className="lbl">Yatırım / ciro</td><td className="n">{pc(A.capexPct)}</td></tr>
+          <tr><td className="lbl">Net işletme sermayesi / ciro</td><td className="n">{pc(A.nwcPct)}</td></tr>
+          <tr><td className="lbl">Yeni yatırım ömrü</td><td className="n">{A.daLife} yıl</td></tr>
+          <tr><td className="lbl">Mevcut amortisman azalışı</td><td className="n">{pc(A.daFade)}</td></tr>
+          <tr><td className="lbl">Kurumlar vergisi</td><td className="n">{pc(A.taxRate)}</td></tr>
+        </tbody></table></div>
+      </Panel>
+      <Panel title="İskonto oranı (WACC)" flush>
+        <div className="scroll"><table className="g"><tbody>
+          <tr><td className="lbl">Risksiz oran</td><td className="n">{pc(A.wacc.rf)}</td></tr>
+          <tr><td className="lbl">Özkaynak risk primi</td><td className="n">{pc(A.wacc.erp)}</td></tr>
+          <tr><td className="lbl">Ülke risk primi</td><td className="n">{pc(A.wacc.crp)}</td></tr>
+          <tr><td className="lbl">Kaldıraçsız beta</td><td className="n">{nf(A.wacc.betaU,2)}</td></tr>
+          <tr><td className="lbl">Küçüklük primi</td><td className="n">{pc(A.wacc.size)}</td></tr>
+          <tr><td className="lbl">Borç maliyeti (vergi öncesi)</td><td className="n">{pc(A.wacc.kd)}</td></tr>
+          <tr><td className="lbl">Borç / özkaynak</td><td className="n">{nf(A.wacc.de,2)}x</td></tr>
+          <tr className="sum"><td className="lbl">Hesaplanan WACC</td><td className="n">{pc(W.value)}</td></tr>
+        </tbody></table></div>
+      </Panel>
+      <Panel title="Terminal değer ve çarpanlar" flush>
+        <div className="scroll"><table className="g"><tbody>
+          <tr><td className="lbl">Yöntem</td><td className="n">{A.tvMethod==='gordon'?'Sürekli büyüme':'Çıkış çarpanı'}</td></tr>
+          {A.tvMethod==='gordon'
+            ? <tr><td className="lbl">Terminal büyüme</td><td className="n">{pc(A.tg)}</td></tr>
+            : <tr><td className="lbl">Çıkış FAVÖK çarpanı</td><td className="n">{nf(A.exitMult,2)}x</td></tr>}
+          <tr><td className="lbl">Yıl ortası iskonto</td><td className="n">{A.midYear?'Evet':'Hayır'}</td></tr>
+          <tr><td className="lbl">EV / FAVÖK çarpanı</td><td className="n">{nf(A.mult.value,2)}x</td></tr>
+          <tr><td className="lbl">Çarpan baz</td><td className="n">{A.mult.basis==='ltm'?`${B.year} normalize`:`${B.year+1}T ileri`}</td></tr>
+          <tr><td className="lbl">Likidite / ölçek iskontosu</td><td className="n">{pc(A.mult.disc||0)}</td></tr>
+          <tr><td className="lbl">Rayiç değer farkı</td><td className="n">{mUsd(A.na.uplift||0)}</td></tr>
+          <tr><td className="lbl">Maddi olmayan varlıklar dışlandı mı</td><td className="n">{A.na.excludeIntang?'Evet':'Hayır'}</td></tr>
+        </tbody></table></div>
+      </Panel>
+      <Panel title="Yöntem ağırlıkları" flush>
+        <div className="scroll"><table className="g"><tbody>
+          <tr><td className="lbl">İndirgenmiş nakit akımı</td><td className="n">{pc(A.weights.dcf)}</td></tr>
+          <tr><td className="lbl">FAVÖK çarpanı</td><td className="n">{pc(A.weights.mult)}</td></tr>
+          <tr><td className="lbl">Net aktifler</td><td className="n">{pc(A.weights.na)}</td></tr>
+        </tbody></table></div>
+      </Panel>
+    </div>
+  );
+}
