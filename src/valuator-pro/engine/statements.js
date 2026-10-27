@@ -105,10 +105,12 @@ export function buildHistory(ledgers, state){
     const annualize = state.annualize?.[L.id] ?? (L.months && L.months<12 ? 12/L.months : 1);
     const bs = buildBS(L, { partnersAsDebt: state.partnersAsDebt });
     const is = buildIS(L, prev, { annualize, daOverride: state.daOverride?.[L.year] });
-    const addb = (state.addbacks||[]).filter(a => a.on && +a.year===L.year).reduce((s,a)=>s+(+a.tl||0),0);
+    const fx = { ...(DEFAULT_FX[L.year]||{}), ...(state.fx?.[L.year]||{}) };
+    // USD girilen geri eklemeler, FAVÖK'e eklenmeden önce o yılın ortalama kuruyla TL'ye çevrilir.
+    const addb = (state.addbacks||[]).filter(a => a.on && +a.year===L.year)
+      .reduce((s,a)=>s+(+a.tl||0)*(a.currency==='USD'?(fx.avg||1):1), 0);
     const fxInc = state.fxInEbitda ? (is.fxGain - is.fxLoss) : 0;
     const ebitdaAdj = is.ebitda + addb + fxInc;
-    const fx = { ...(DEFAULT_FX[L.year]||{}), ...(state.fx?.[L.year]||{}) };
     years.push({ year:L.year, id:L.id, L, bs, is, addb, fxInc, ebitdaAdj, fx, annualize, months:L.months });
   });
   // USD dönüşümü ('000 USD): akış → yıl ortalaması, stok → yıl sonu

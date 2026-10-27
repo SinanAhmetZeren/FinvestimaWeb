@@ -4,12 +4,22 @@ import { RevenueChart, FootballField, Bridge } from '../charts.jsx';
 import { applyScenario, SECTOR_MULTIPLES, defaultAssumptions } from '../engine/valuation.js';
 import { cogsMix } from '../engine/statements.js';
 import { exportWorkbook } from '../engine/exportXlsx.js';
-import { useStartComparableMultiplesMutation, useLazyGetComparableMultiplesJobQuery, useGetLatestComparableMultiplesJobQuery, useGetComparableMultiplesTableQuery, useSaveComparableMultiplesTableMutation } from '../../slices/ValuatorProSlice.js';
+import { useStartComparableMultiplesMutation, useLazyGetComparableMultiplesJobQuery, useGetLatestComparableMultiplesJobQuery, useGetComparableMultiplesTableQuery, useSaveComparableMultiplesTableMutation, useSaveAssumptionsMutation } from '../../slices/ValuatorProSlice.js';
+
+// JSON.stringify anahtar sırasına duyarlı — asm objeleri farklı sırada üretilebildiği için
+// "kaydedilmişle aynı mı" kontrolü bu stabil (anahtarları sıralanmış) sürümle yapılır.
+const stableStringify = v => {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+};
 
 const noVal = <div className="left"><Empty title="Değerleme için tarihsel veri gerekli">L1'de en az bir yıllık mizan ya da beyanname yükleyin.</Empty></div>;
 const COSTS = [['mat','Malzeme'],['lab','Direkt işçilik'],['ovh','Genel üretim (amort. hariç)'],['psd','Pazarlama, satış, dağıtım'],['ga','Genel yönetim'],['rnd','Ar-Ge']];
 
 export function L5Assumptions({ hist, st, up, V, rr, print }){
+  const [saveAssumptionsMut, { isLoading: savingAsm }] = useSaveAssumptionsMutation();
+  const [resetConfirm, setResetConfirm] = useState(false);
   if (!hist.length || !st.asm || !V) return noVal;
   const A = st.asm, P = V.P, B = V.B;
   const setA = p => up(s => {
@@ -76,7 +86,6 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
     </div>
   </>);
   if (print) return <div className="left">{body}</div>;
-  const base = st.baseAsm || A;
   return (<>
     <div className="left">{body}</div>
     <Insp>
@@ -85,7 +94,7 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
         <Seg value={A.scenario} onChange={k=>up(s=>({ asm: applyScenario(s.asm, k, s.baseAsm) }))} options={[{v:'pess',l:'Kötümser'},{v:'base',l:'Baz'},{v:'opt',l:'İyimser'}]} />
         <div className="gap" />
         <Seg value={A.N} onChange={n=>setA({N:n})} options={[{v:5,l:'5 yıl'},{v:7,l:'7 yıl'}]} />
-        {A.scenario==='custom' && <p className="muted small">Sürücüler elle değiştirildi.</p>}
+        <p className="muted small" style={{ opacity: A.scenario==='custom' ? 1 : 0, margin:'8px 0 0' }}>Sürücüler elle değiştirildi.</p>
       </div>
       <div className="iblk"><h4>Gelir büyümesi (USD)</h4>
         {rr && <Toggle checked={A.y1Mode==='runrate'} onChange={v=>setA({y1Mode: v?'runrate':'growth'})} title={`${B.year+1} cirosunu aylık rapordan türet`}
@@ -109,10 +118,24 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
         <NumField label="Kurumlar vergisi" value={A.taxRate} pct step={0.01} min={0} max={0.5} onChange={v=>setA({taxRate:v})} />
       </div>
       <div className="iblk">
-        <button className="ibtn ghost" onClick={()=>up({ asm: { ...base, scenario:'base' } })}>Varsayımları baza döndür</button>
-        <button className="ibtn ghost" onClick={()=>{ const D = { ...defaultAssumptions(hist), _base: B.year }; up({ asm:D, baseAsm:D }); }}>Tarihsel verilerden yeniden kur</button>
+        <button className="ibtn" disabled={savingAsm || !st.valuationTaskId || stableStringify(A)===stableStringify(st.savedAsm)}
+          onClick={()=>saveAssumptionsMut({ valuationTaskId: st.valuationTaskId, assumptions: A }).then(()=>up({ savedAsm: A }))}>{savingAsm?'Kaydediliyor…':'Kaydet'}</button>
+        <button className="ibtn ghost" onClick={()=>setResetConfirm(true)}>Varsayımları baza döndür</button>
       </div>
       <div className="inote">Varsayılanlar baz yılın gerçekleşmesidir; marj iyileşmesi kendiliğinden varsayılmaz. Hedef değiştirildiğinde sürücü sınaması tarihsel aralıkla karşılaştırır.</div>
+      {resetConfirm && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(17,28,51,.55)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setResetConfirm(false)}>
+          <div style={{ background:'#fff', borderRadius:10, width:'min(380px, 92vw)', boxShadow:'0 20px 60px rgba(0,0,0,.3)', padding:'20px 22px' }} onClick={e=>e.stopPropagation()}>
+            <h3 style={{ margin:'0 0 8px', fontSize:15 }}>Varsayımları baza döndür</h3>
+            <p className="muted small" style={{ margin:'0 0 18px' }}>Tüm manuel değişiklikler geri alınacak. Veritabanına yazmak için Kaydet'e basmanız gerekmektedir.</p>
+            <div style={{ display:'flex', gap:8 }}>
+              <button className="ibtn ghost" style={{ flex:1, marginTop:0 }} onClick={()=>setResetConfirm(false)}>Vazgeç</button>
+              <button className="ibtn" style={{ flex:1, marginTop:0, background:'var(--red)', borderColor:'var(--red)' }}
+                onClick={()=>{ const D = { ...defaultAssumptions(hist), _base: B.year }; up({ asm:D, baseAsm:D }); setResetConfirm(false); }}>Geri al</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Insp>
   </>);
 }
@@ -121,6 +144,8 @@ const CM_POLL_COLORS = { Starting: 'var(--gold)', Pending: 'var(--faint)', Proce
 const CM_POLL_LABELS = { Starting: 'Başlatılıyor…', Pending: 'Sırada…', Processing: 'Araştırılıyor…' };
 
 export function L6Valuation({ hist, st, up, V, print }){
+  const [saveAssumptionsMut, { isLoading: savingAsm }] = useSaveAssumptionsMutation();
+  const [resetConfirm, setResetConfirm] = useState(false);
   const [startComparableMultiples] = useStartComparableMultiplesMutation();
   const [fetchComparableMultiplesJob] = useLazyGetComparableMultiplesJobQuery();
   const [cmOpen, setCmOpen] = useState(false);
@@ -445,8 +470,26 @@ export function L6Valuation({ hist, st, up, V, print }){
         <NumField label="Net aktifler" value={A.weights.na} pct step={0.05} min={0} max={1} onChange={v=>setA({weights:{...A.weights, na:v}})} />
         {Math.abs(ws-1)>0.001 && <p className="muted small">Ağırlıklar toplamı {pc(ws,0)}; sonuç %100'e oranlanır.</p>}
       </div>
+      <div className="iblk">
+        <button className="ibtn" disabled={savingAsm || !st.valuationTaskId || stableStringify(A)===stableStringify(st.savedAsm)}
+          onClick={()=>saveAssumptionsMut({ valuationTaskId: st.valuationTaskId, assumptions: A }).then(()=>up({ savedAsm: A }))}>{savingAsm?'Kaydediliyor…':'Kaydet'}</button>
+        <button className="ibtn ghost" onClick={()=>setResetConfirm(true)}>Varsayımları baza döndür</button>
+      </div>
       <div className="inote">İskonto oranı tek başına en güçlü değişkendir. Bileşenlerine ayrılıp belgelenmesi müzakerede pozisyonu güçlendirir.</div>
     </Insp>
+    {resetConfirm && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(17,28,51,.55)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setResetConfirm(false)}>
+        <div style={{ background:'#fff', borderRadius:10, width:'min(380px, 92vw)', boxShadow:'0 20px 60px rgba(0,0,0,.3)', padding:'20px 22px' }} onClick={e=>e.stopPropagation()}>
+          <h3 style={{ margin:'0 0 8px', fontSize:15 }}>Varsayımları baza döndür</h3>
+          <p className="muted small" style={{ margin:'0 0 18px' }}>Tüm manuel değişiklikler geri alınacak. Veritabanına yazmak için Kaydet'e basmanız gerekmektedir.</p>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="ibtn ghost" style={{ flex:1, marginTop:0 }} onClick={()=>setResetConfirm(false)}>Vazgeç</button>
+            <button className="ibtn" style={{ flex:1, marginTop:0, background:'var(--red)', borderColor:'var(--red)' }}
+              onClick={()=>{ const D = { ...defaultAssumptions(hist), _base: B.year }; up({ asm:D, baseAsm:D }); setResetConfirm(false); }}>Geri al</button>
+          </div>
+        </div>
+      </div>
+    )}
   </>);
 }
 

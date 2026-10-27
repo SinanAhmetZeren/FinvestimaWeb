@@ -4,7 +4,7 @@ import { RevenueChart, Bridge } from '../charts.jsx';
 import { contribution, LEVELS } from '../engine/contribution.js';
 import { lineOf, accName, BS_ASSETS, BS_LIABS } from '../engine/accounts.js';
 import { flow } from '../engine/ledger.js';
-import { useSaveContributionClassificationsMutation } from '../../slices/ValuatorProSlice.js';
+import { useSaveContributionClassificationsMutation, useGetAddbacksQuery, useSaveAddbacksMutation, useGetDepreciationOverridesQuery, useSaveDepreciationOverridesMutation } from '../../slices/ValuatorProSlice.js';
 
 const LINE_LABEL = {};
 [...BS_ASSETS, ...BS_LIABS].forEach(s => s.lines.forEach(l => { LINE_LABEL[l.k] = l.n; }));
@@ -174,6 +174,10 @@ export function L4Income({ hist, st, up, print }){
   const [mode, setMode] = useState('USD');
   const [cy, setCy] = useState(hist.length ? hist[hist.length-1].year : null);
   const [modalKey, setModalKey] = useState(null);
+  const [abDraft, setAbDraft] = useState(null);
+  const [abHint, setAbHint] = useState(null);
+  const [daTouched, setDaTouched] = useState(false);
+  const [daConfirm, setDaConfirm] = useState(false);
   useEffect(() => {
     if (!modalKey) return;
     const onKey = e => { if (e.key === 'Escape') setModalKey(null); };
@@ -183,6 +187,12 @@ export function L4Income({ hist, st, up, print }){
   const [saveClassifications, { isLoading: savingCls }] = useSaveContributionClassificationsMutation();
   const Hpre = hist.find(h=>h.year===cy) || hist[hist.length-1];
   const ctPre = hist.length ? contribution(Hpre, st.contrib) : { rows: [] };
+  const { data: addbacksData } = useGetAddbacksQuery(st.valuationTaskId, { skip: !st.valuationTaskId });
+  const [saveAddbacksMut, { isLoading: savingAb }] = useSaveAddbacksMutation();
+  const { data: daOverrideData } = useGetDepreciationOverridesQuery(st.valuationTaskId, { skip: !st.valuationTaskId });
+  const [saveDaOverrideMut] = useSaveDepreciationOverridesMutation();
+  useEffect(() => { if (daOverrideData) up({ daOverride: Object.fromEntries(daOverrideData.map(r => [r.year, r.amount])) }); }, [daOverrideData]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (addbacksData) up({ addbacks: addbacksData.map(a => ({ id: a.id, description: a.description || a.name || '', year: a.year, tl: a.amount, currency: a.currency, ev: a.hasEvidence, on: a.isActive })) }); }, [addbacksData]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!hist.length) return noData;
   const c = (h, v) => mode==='TL' ? v/1000 : mode==='USD' ? v/(h.fx.avg||1)/1000 : v/(h.is.netSales||1);
   const fmt = mode==='PCT' ? (x=>pc(x)) : par;
@@ -342,8 +352,19 @@ export function L4Income({ hist, st, up, print }){
     </div>
   );
 
-  const addAb = () => up(s => ({ addbacks: [...s.addbacks, { id:'a'+Date.now(), name:'Yeni geri ekleme', year: hist[hist.length-1].year, tl:0, ev:false, on:true }] }));
-  const setAb = (id, p) => up(s => ({ addbacks: s.addbacks.map(a=>a.id===id?{...a,...p}:a) }));
+  const addAb = () => setAbDraft({ description:'', year: hist[hist.length-1].year, tl:0, currency:'TRY', ev:false, on:true });
+  const persist = list => saveAddbacksMut({
+    valuationTaskId: st.valuationTaskId,
+    rows: list.map(a => ({ name: a.description || '', description: a.description || '', year: a.year, amount: a.tl, currency: a.currency || 'TRY', hasEvidence: !!a.ev, isActive: !!a.on })),
+  }).unwrap().then(saved => up({ addbacks: saved.map(a => ({ id: a.id, description: a.description || a.name || '', year: a.year, tl: a.amount, currency: a.currency, ev: a.hasEvidence, on: a.isActive })) }));
+  const saveAbDraft = () => {
+    const next = abDraft.id ? st.addbacks.map(a => a.id===abDraft.id ? abDraft : a) : [...st.addbacks, abDraft];
+    persist(next).then(() => setAbDraft(null)).catch(() => {});
+  };
+  const deleteAbDraft = () => {
+    if (!abDraft.id) { setAbDraft(null); return; }
+    persist(st.addbacks.filter(a => a.id!==abDraft.id)).then(() => setAbDraft(null)).catch(() => {});
+  };
   return (<>
     <div className="left">{body}</div>
     {modal}
@@ -351,30 +372,59 @@ export function L4Income({ hist, st, up, print }){
       <div className="ihead">Uyarlamalar <span>L4</span></div>
       <div className="iblk"><h4>Amortisman (bin TL)</h4>
         {hist.map(h => (
-          <div className="irow" key={h.year}>
-            <label>{h.year} <Tag c={h.is.da.source==='sub'?'green':h.is.da.source==='manual'?'teal':'gold'}>{({sub:'alt hesap',delta:'birikmiş fark',pct:'%4 tahmin',manual:'elle'})[h.is.da.source]}</Tag></label>
+          <div className="irow da-row" key={h.year}>
+            <span className="yr">{h.year}</span>
+            <Tag c={h.is.da.source==='sub'?'green':h.is.da.source==='manual'?'teal':'gold'}>{({sub:'alt hesap',delta:'birikmiş fark',pct:'%4 tahmin',manual:'elle'})[h.is.da.source]}</Tag>
             <input className="ninp w" defaultValue={nf(h.is.da.total/1000)} key={h.year+':'+Math.round(h.is.da.total)}
+              onChange={()=>setDaTouched(true)}
               onBlur={e=>{ const t=e.target.value.trim(); const v=parseFloat(t.replace(/\./g,'').replace(',','.')); up(s=>({ daOverride: { ...s.daOverride, [h.year]: t==='' ? null : (isFinite(v)? v*1000 : null) } })); }} />
           </div>))}
-        {Object.values(st.daOverride||{}).some(v=>v!=null) && <button className="lnk" onClick={()=>up({daOverride:{}})}>Elle girişleri temizle</button>}
+        <div style={{display:'flex',gap:8,marginTop:10}}>
+          <button className="ibtn" style={{flex:1,marginTop:0}} disabled={!st.valuationTaskId || !daTouched} onClick={()=>{ saveDaOverrideMut({ valuationTaskId: st.valuationTaskId, rows: Object.entries(st.daOverride||{}).filter(([,v])=>v!=null).map(([year,amount])=>({ year:+year, amount })) }); setDaTouched(false); }}>Kaydet</button>
+          <button className="ibtn" style={{flex:1,marginTop:0,background:'var(--teal)',borderColor:'var(--teal)'}} disabled={!daTouched && !Object.values(st.daOverride||{}).some(v=>v!=null)} onClick={()=>setDaConfirm(true)}>Geri al</button>
+        </div>
       </div>
-      <div className="iblk"><h4>Geri eklemeler</h4>
+      <div className="iblk"><h4>Geri eklemeler{st.addbacks.length>0 && <span className="ab-chip" style={{marginLeft:6}}>{st.addbacks.length}</span>}</h4>
         {st.addbacks.length===0 && <p className="muted small">Tek seferlik, ortak kaynaklı ya da piyasa dışı giderler FAVÖK'e geri eklenebilir. Kanıtsız kalemler güven skorunu düşürür.</p>}
-        {st.addbacks.map(a => (
-          <div className="ab" key={a.id}>
-            <input className="abn" value={a.name} onChange={e=>setAb(a.id,{name:e.target.value})} aria-label="Kalem adı" />
-            <div className="abr">
-              <select className="csel s" value={a.year} onChange={e=>setAb(a.id,{year:+e.target.value})}>{hist.map(h=><option key={h.year}>{h.year}</option>)}</select>
-              <input className="ninp" defaultValue={nf(a.tl/1000)} key={a.id+a.tl} onBlur={e=>{ const v=parseFloat(e.target.value.replace(/\./g,'').replace(',','.')); setAb(a.id,{tl: isFinite(v)? v*1000 : 0}); }} aria-label="Tutar bin TL" />
-              <span className="u">bin ₺</span>
+        {st.addbacks.length>0 && <div className="ab-items">
+          {st.addbacks.map(a => (
+            <div key={a.id} className={'ab-it'+(a.on?'':' off')+(abDraft?.id===a.id?' sel':'')} onClick={()=>setAbDraft(abDraft?.id===a.id?null:{...a})}>
+              <div className="tx">
+                <div className="ab-row1">
+                  <div className="nm" onMouseEnter={e=>{ const r=e.currentTarget.getBoundingClientRect(); setAbHint({ text: a.description||'İsimsiz', x: r.left, y: r.top }); }} onMouseLeave={()=>setAbHint(null)}>{a.description||'İsimsiz'}</div>
+                  <span className="am">+{nf(a.tl/1000)} bin {a.currency==='USD'?'$':'₺'}</span>
+                </div>
+                <div className="mt">
+                  <span className="ab-chip">{a.year}</span>
+                  <span className={'ab-chip'+(a.on?' on':'')}>{a.on?'uygulandı':'uygulanmıyor'}</span>
+                  <span className={'ab-chip'+(a.ev?' on':'')}>{a.ev?'kanıtlı':'kanıtsız'}</span>
+                </div>
+              </div>
+            </div>))}
+        </div>}
+        {abDraft && (
+          <div className="ab-form">
+            <div className="ab-fh"><b>Geri ekleme</b><button type="button" className="ab-del" title="Kapat" onClick={()=>setAbDraft(null)}>✕</button></div>
+            <input className="ab-fld t" value={abDraft.description||''} onChange={e=>setAbDraft(d=>({...d,description:e.target.value}))} placeholder="Açıklama" aria-label="Açıklama" />
+            <div className="ab-row">
+              <select className="ab-fld" value={abDraft.year} onChange={e=>setAbDraft(d=>({...d,year:+e.target.value}))}>{hist.map(h=><option key={h.year}>{h.year}</option>)}</select>
+              <label className="ab-amt"><input defaultValue={nf(abDraft.tl/1000)} key={(abDraft.id||'new')+abDraft.tl} onBlur={e=>{ const v=parseFloat(e.target.value.replace(/\./g,'').replace(',','.')); setAbDraft(d=>({...d,tl: isFinite(v)? v*1000 : 0})); }} aria-label="Tutar" /></label>
+              <select className="ab-fld" value={abDraft.currency||'TRY'} onChange={e=>setAbDraft(d=>({...d,currency:e.target.value}))} aria-label="Para birimi">
+                <option value="TRY">bin ₺</option>
+                <option value="USD">bin $</option>
+              </select>
             </div>
-            <div className="abr">
-              <label className="inl"><input type="checkbox" checked={a.on} onChange={e=>setAb(a.id,{on:e.target.checked})}/> uygula</label>
-              <label className="inl"><input type="checkbox" checked={a.ev} onChange={e=>setAb(a.id,{ev:e.target.checked})}/> kanıtlı</label>
-              <button className="lnk" onClick={()=>up(s=>({addbacks:s.addbacks.filter(x=>x.id!==a.id)}))}>Sil</button>
+            <div className="ab-opts">
+              <label className="ab-cb"><input type="checkbox" checked={abDraft.on} onChange={e=>setAbDraft(d=>({...d,on:e.target.checked}))}/>Uygula</label>
+              <label className="ab-cb"><input type="checkbox" checked={abDraft.ev} onChange={e=>setAbDraft(d=>({...d,ev:e.target.checked}))}/>Kanıtlı</label>
             </div>
-          </div>))}
-        <button className="ibtn ghost" onClick={addAb}>Geri ekleme ekle</button>
+            <div style={{display:'flex',gap:8}}>
+              <button className="ibtn" style={{flex:1,marginTop:0}} disabled={savingAb || !st.valuationTaskId} onClick={saveAbDraft}>{savingAb?'Kaydediliyor…':'Kaydet'}</button>
+              {abDraft.id && <button className="ibtn" style={{flex:1,marginTop:0,background:'var(--teal)',borderColor:'var(--teal)'}} disabled={savingAb} onClick={deleteAbDraft}>Sil</button>}
+            </div>
+          </div>
+        )}
+        {!abDraft && <button type="button" className="ab-add" onClick={addAb}>+ Geri ekleme ekle</button>}
       </div>
       <div className="iblk"><h4>Normalizasyon</h4>
         <Toggle checked={st.fxInEbitda} onChange={v=>up({fxInEbitda:v})} title="Net kur farkını FAVÖK'e kat" desc="İhracatçı firmalarda kur farkı faaliyetle ilgili olabilir. Varsayılan olarak hariç tutulur." />
@@ -383,5 +433,23 @@ export function L4Income({ hist, st, up, print }){
       </div>
       <div className="inote"><b>Taban:</b> üç yöntem de bu normalize FAVÖK'ten beslenir. Taban yanlışsa üç sonuç birden yanlış çıkar ve birbirini doğruluyor gibi görünür.</div>
     </Insp>
+    {abHint && (
+      <div style={{ position:'fixed', top:abHint.y, left:abHint.x, transform:'translate(-100%,-50%)', marginLeft:-10, background:'var(--navy)', color:'#fff', padding:'8px 11px', borderRadius:7, fontSize:12, lineHeight:1.4, maxWidth:260, boxShadow:'0 8px 24px rgba(20,33,61,.25)', zIndex:500, pointerEvents:'none' }}>
+        {abHint.text}
+      </div>
+    )}
+    {daConfirm && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(17,28,51,.55)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setDaConfirm(false)}>
+        <div style={{ background:'#fff', borderRadius:10, width:'min(380px, 92vw)', boxShadow:'0 20px 60px rgba(0,0,0,.3)', padding:'20px 22px' }} onClick={e=>e.stopPropagation()}>
+          <h3 style={{ margin:'0 0 8px', fontSize:15 }}>Amortisman girişlerini sil</h3>
+          <p className="muted small" style={{ margin:'0 0 18px' }}>Tüm manuel amortisman değişiklikleri silinsin mi? Bu işlem geri alınamaz.</p>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="ibtn ghost" style={{ flex:1, marginTop:0 }} onClick={()=>setDaConfirm(false)}>Vazgeç</button>
+            <button className="ibtn" style={{ flex:1, marginTop:0, background:'var(--red)', borderColor:'var(--red)' }}
+              onClick={()=>{ up({daOverride:{}}); saveDaOverrideMut({ valuationTaskId: st.valuationTaskId, rows: [] }); setDaTouched(false); setDaConfirm(false); }}>Sil</button>
+          </div>
+        </div>
+      </div>
+    )}
   </>);
 }

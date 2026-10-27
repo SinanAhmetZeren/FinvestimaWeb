@@ -4,10 +4,10 @@ import { setVpLang, setPendingTask, clearPendingTask } from '../slices/VpLangSli
 import { buildLedger } from './engine/ledger.js';
 import { parseWorkbookFile } from './engine/parseExcel.js';
 import { parsePdfFile, ledgerFromItems } from './engine/parsePdf.js';
-import { useUploadTrialBalanceMutation, useLazyGetUploadJobQuery, useLazyGetValuationTaskQuery } from '../slices/ValuatorProSlice.js';
+import { useUploadTrialBalanceMutation, useLazyGetUploadJobQuery, useLazyGetValuationTaskQuery, useLazyGetAssumptionsQuery, useComputeAssumptionsMutation } from '../slices/ValuatorProSlice.js';
 import { buildHistory, DEFAULT_FX } from './engine/statements.js';
 import { fetchFxSummary } from './engine/fxApi.js';
-import { defaultAssumptions, valuate, runRate } from './engine/valuation.js';
+import { valuate, runRate } from './engine/valuation.js';
 import { runAudit } from './engine/audit.js';
 import { mUsd, pc } from './ui.jsx';
 import { RightColContext } from './rightColContext.js';
@@ -32,12 +32,14 @@ const LAYERS = [
 ];
 
 const EMPTY = { company:'', ledgers:[], pdfDocs:[], monthly:[], fx:{}, partnersAsDebt:true, fxInEbitda:false,
-  daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, closed:[], log:[], valuationTaskId:null, maxCodeDigits:0 };
+  daOverride:{}, annualize:{}, addbacks:[], contrib:{}, asm:null, baseAsm:null, savedAsm:null, closed:[], log:[], valuationTaskId:null, maxCodeDigits:0 };
 
 export default function ValuatorProEngine(){
   const [uploadTrialBalance] = useUploadTrialBalanceMutation();
   const [fetchUploadJob] = useLazyGetUploadJobQuery();
   const [fetchValuationTask] = useLazyGetValuationTaskQuery();
+  const [fetchAssumptions] = useLazyGetAssumptionsQuery();
+  const [computeAssumptionsMut] = useComputeAssumptionsMutation();
   const dispatch = useDispatch();
   // Veri DB'den geliyor (L0'da task seçilince taze çekilir) — localStorage'da ayrıca
   // saklamıyoruz, her girişte sıfırdan başlanır, bayat/çelişkili veri görünmesin diye.
@@ -66,6 +68,11 @@ export default function ValuatorProEngine(){
   const [rightOpen, setRightOpen] = useState(true);
   useEffect(() => { if (rightColEl) rightColEl.scrollTop = 0; }, [layer, rightColEl]);
   const up = useCallback(patch => setSt(s => ({ ...s, ...(typeof patch==='function' ? patch(s) : patch) })), []);
+  const loadAssumptions = async taskId => {
+    up({ savedAsmLoading: true });
+    const resp = await fetchAssumptions(taskId).unwrap().catch(() => null);
+    up({ savedAsm: resp?.assumptions || null, savedAsmLoading: false });
+  };
 
   const pdfLedgers = useMemo(() => st.pdfDocs.flatMap(d => {
     const out = [ledgerFromItems(d.items, { year:d.year, which:'cur', fileName:d.fileName, id:d.id+'c' })];
@@ -90,11 +97,22 @@ export default function ValuatorProEngine(){
   const rr = useMemo(() => hist.length ? runRate(st.monthly, hist, fxTable, lastYear+1) : null, [st.monthly, hist, fxTable, lastYear]);
 
   useEffect(() => {
+    if (hist.length && st.savedAsmLoading) return; // kayıtlı varsayımlar henüz çekiliyor, bekle
     if (hist.length && (!st.asm || st.asm._base !== lastYear)){
-      const A = { ...defaultAssumptions(hist), _base: lastYear };
-      up({ asm: A, baseAsm: A });
+      // Kayıtlı (backend'den gelen) varsayımlar bu baz yıl için hâlâ geçerliyse onu kullan —
+      // yoksa (ilk yükleme ya da baz yıl değişti) taze hesapla ve backend'e yaz (bkz. SaveAssumptions).
+      if (st.savedAsm && st.savedAsm._base === lastYear) {
+        up({ asm: st.savedAsm, baseAsm: st.savedAsm });
+        return;
+      }
+      // Normalde mizan yazılırken backend otomatik hesaplayıp kaydediyor (bkz.
+      // TrialBalanceExtractionService → ValuationAssumptionsService) — buraya sadece bu task'ın
+      // daha önce hiç otomatik hesaplanmadığı (eski task) durumlarda düşülür.
+      if (st.valuationTaskId) computeAssumptionsMut(st.valuationTaskId).unwrap().then(resp => {
+        if (resp.assumptions) up({ asm: resp.assumptions, baseAsm: resp.assumptions, savedAsm: resp.assumptions });
+      }).catch(() => {});
     }
-  }, [hist, lastYear]); // eslint-disable-line
+  }, [hist, lastYear, st.savedAsmLoading, st.savedAsm]); // eslint-disable-line
 
   const V = useMemo(() => { try { return (hist.length && st.asm && st.asm._base===lastYear) ? valuate(hist, st.asm, { rr }) : null; } catch(e){ console.error(e); return null; } }, [hist, st.asm, rr, lastYear]);
   const audit = useMemo(() => {
@@ -126,6 +144,7 @@ export default function ValuatorProEngine(){
   const selectTask = async (t) => {
     setUploadPoll(null);
     up({ valuationTaskId: t.id, company: t.companyName, ledgers: [], pdfDocs: [], log: [] });
+    loadAssumptions(t.id);
     const task = await fetchValuationTask(t.id).unwrap();
     if (task.accountingStandard === 'UsGaap') {
       // Bu motor Tekdüzen için — GAAP task seçildiğinde EN motoruna geçilir, o motor
@@ -195,6 +214,7 @@ export default function ValuatorProEngine(){
           }).unwrap();
           currentTaskId = valuationTaskId;
           up({ valuationTaskId });
+          if (!st.savedAsm) loadAssumptions(valuationTaskId);
           log(`${f.name}: Gemini ile mizan okunuyor…`);
           const completedJob = await pollUploadJob(jobId, job => flashPoll(job.status));
           const thisJobYears = new Set((completedJob.result?.years || []).map(y => y.year));

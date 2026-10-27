@@ -41,7 +41,9 @@ export function runAudit({ hist, ledgers, monthly, V, A, state }){
     }
   }
   const addb = (state.addbacks||[]).filter(a=>a.on);
-  const noEv = addb.filter(a=>!a.ev).reduce((s,a)=>s+(+a.tl||0),0);
+  // USD girilenler, kendi yılının ortalama kuruyla TL'ye çevrilir (bkz. statements.js buildHistory).
+  const addbTl = a => (+a.tl||0) * (a.currency==='USD' ? ((hist.find(h=>h.year===+a.year)||last).fx.avg||1) : 1);
+  const noEv = addb.filter(a=>!a.ev).reduce((s,a)=>s+addbTl(a),0);
   if (noEv && last.ebitdaAdj && noEv/last.ebitdaAdj > 0.05) add('addb','warn','L4','Kanıtsız geri eklemeler',`Kanıtı olmayan geri eklemeler FAVÖK'ün ${pct(noEv/last.ebitdaAdj)}'i.`,'Belge ekleyin ya da geri eklemeyi kapatın.');
 
   if (V && A){

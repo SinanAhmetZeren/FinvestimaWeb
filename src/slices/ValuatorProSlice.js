@@ -49,6 +49,50 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       }),
     }),
 
+    // L4 "Geri eklemeler" — task başına kalıcı, "Kaydet" ile tek seferde (tüm liste) kaydedilir.
+    getAddbacks: builder.query({
+      query: (valuationTaskId) => `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/addbacks`,
+    }),
+    saveAddbacks: builder.mutation({
+      query: ({ valuationTaskId, rows }) => ({
+        url: `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/addbacks`,
+        method: "PUT",
+        body: rows,
+      }),
+    }),
+
+    // L4 "Amortisman" elle giriş listesi — task+yıl başına tek tutar, aynı tam-liste desen.
+    getDepreciationOverrides: builder.query({
+      query: (valuationTaskId) => `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/depreciation-overrides`,
+    }),
+    saveDepreciationOverrides: builder.mutation({
+      query: ({ valuationTaskId, rows }) => ({
+        url: `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/depreciation-overrides`,
+        method: "PUT",
+        body: rows,
+      }),
+    }),
+
+    // L5/L6 "Varsayımlar" — task başına tek JSON blob (frontend asm objesiyle birebir).
+    getAssumptions: builder.query({
+      query: (valuationTaskId) => `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/assumptions`,
+    }),
+    saveAssumptions: builder.mutation({
+      query: ({ valuationTaskId, assumptions }) => ({
+        url: `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/assumptions`,
+        method: "PUT",
+        body: { assumptions },
+      }),
+    }),
+    // Backend'in kendi motoruyla (ValuationEngine) varsayılanları hesaplayıp kaydeder — mizan
+    // yüklenince ve "Varsayımları baza döndür" denince çağrılır.
+    computeAssumptions: builder.mutation({
+      query: (valuationTaskId) => ({
+        url: `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/compute-assumptions`,
+        method: "POST",
+      }),
+    }),
+
     // Mizan ızgarasında elle düzeltilen bir hesabı kaydeder — eski satırın üzerine yazmaz,
     // yeni bir versiyon olarak eklenir (en son CreatedAt kazanır).
     editTrialBalanceAccount: builder.mutation({
@@ -137,6 +181,14 @@ export const {
   useGetLatestComparableMultiplesJobQuery,
   useGetComparableMultiplesTableQuery,
   useSaveComparableMultiplesTableMutation,
+  useGetAddbacksQuery,
+  useSaveAddbacksMutation,
+  useGetDepreciationOverridesQuery,
+  useSaveDepreciationOverridesMutation,
+  useGetAssumptionsQuery,
+  useLazyGetAssumptionsQuery,
+  useSaveAssumptionsMutation,
+  useComputeAssumptionsMutation,
   useLazyGetValuationTaskQuery,
   useSaveContributionClassificationsMutation,
   useRemoveYearMutation,
