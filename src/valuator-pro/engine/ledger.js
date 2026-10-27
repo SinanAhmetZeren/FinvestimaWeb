@@ -122,7 +122,7 @@ export function costSubAccounts(L){
       if (ok && !pick) pick = lvl;
     }
     if (!pick) pick = rows.filter(r=>r.d.length===lens[0]);
-    pick.forEach(r=>out.push({parent:g, code:r.code, d:r.d, name:r.name, v:val(r)}));
+    pick.forEach(r=>out.push({parent:g, code:r.code, d:r.d, name:r.name, v:val(r), contributionClass:r.contributionClass, contributionClassIsManual:r.contributionClassIsManual}));
   }
   return out;
 }

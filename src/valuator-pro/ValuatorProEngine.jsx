@@ -135,7 +135,7 @@ export default function ValuatorProEngine(){
       return;
     }
     const newLedgers = task.years.map(y => buildLedger(
-      [...y.accounts, ...(y.subAccounts || [])].map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
+      [...y.accounts, ...(y.subAccounts || [])].map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride, contributionClass:a.contributionClass, contributionClassIsManual:a.contributionClassIsManual }; }),
       { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
     ));
     if (newLedgers.length) up(s => ({ ledgers: newLedgers }));
@@ -205,7 +205,7 @@ export default function ValuatorProEngine(){
             // farkından kendimiz hesaplanıyor — Gemini bu iki ayrı alanı tutarsız okuyabiliyor.
             // subAccounts: Katkı seviyeleri (Statements.jsx) için 6/7 sınıfı hesapların 3 haneden
             // derin, kümelenmemiş kırılım satırları — accounts'taki 3'lü köklerin yanına eklenir.
-            [...y.accounts, ...(y.subAccounts || [])].map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride }; }),
+            [...y.accounts, ...(y.subAccounts || [])].map(a => { const net=(+a.debit||0)-(+a.credit||0); return { code:a.code, name:a.name, dt:a.debit, ct:a.credit, db:Math.max(net,0), cb:Math.max(-net,0), isManualOverride:a.isManualOverride, contributionClass:a.contributionClass, contributionClassIsManual:a.contributionClassIsManual }; }),
             { year:y.year, months:y.months, source:'mizan', fileName:y.fileName || '', company:task.companyName, fileDt:y.fileDebitTotal, fileCt:y.fileCreditTotal }
           ));
           up(s => {

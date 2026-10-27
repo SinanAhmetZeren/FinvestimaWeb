@@ -73,6 +73,16 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       query: (valuationTaskId) => `/api/ValuatorPro/valuation-tasks/${valuationTaskId}`,
     }),
 
+    // Katkı seviyeleri (Statements.jsx) sınıflandırmasını kaydeder — hem otomatik (classify()
+    // çıktısı) hem elle değiştirilen satırlar buraya gelir, bkz. SaveContributionClassifications.
+    saveContributionClassifications: builder.mutation({
+      query: ({ valuationTaskId, year, items }) => ({
+        url: "/api/ValuatorPro/trial-balance-accounts/contribution-classifications",
+        method: "PUT",
+        body: { valuationTaskId, year, items },
+      }),
+    }),
+
     // Bir yılı task'tan tamamen kaldırır (soft-delete) — hücre düzeltmeden farklı, yanlış bir
     // yüklemenin tümden geri çekilmesi için.
     removeYear: builder.mutation({
@@ -128,6 +138,7 @@ export const {
   useGetComparableMultiplesTableQuery,
   useSaveComparableMultiplesTableMutation,
   useLazyGetValuationTaskQuery,
+  useSaveContributionClassificationsMutation,
   useRemoveYearMutation,
   useLazyGetMyValuationTasksQuery,
   useGetMyValuationTasksQuery,

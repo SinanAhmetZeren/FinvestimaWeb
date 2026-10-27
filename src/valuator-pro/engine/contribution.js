@@ -26,7 +26,13 @@ export function contribution(h, overrides = {}){
   const gap = h.is.cogs - prod;
   // 62x SMM ile 7/A üretim maliyetleri arasındaki fark (ticari mal maliyeti, stok değişimi)
   if (base.length && Math.abs(gap) > 0.005*(h.is.netSales||1)) base.unshift({ parent:'62x', code:'62x − 7/A', d:'GAP', name:'Ticari mal maliyeti ve stok değişimi (62x ile 7/A farkı)', v:gap });
-  const rows = base.map(r => ({ ...r, cls: overrides[r.d] || (r.d==='GAP' ? 'B' : classify(r)), auto: !overrides[r.d] }));
+  // Öncelik: bu oturumda elle değiştirilen (overrides) > backend'de daha önce kaydedilmiş elle
+  // değer (contributionClassIsManual) > otomatik classify() sonucu.
+  const rows = base.map(r => {
+    const backendManual = r.contributionClassIsManual ? r.contributionClass : null;
+    const ov = overrides[r.d] || backendManual;
+    return { ...r, cls: ov || (r.d==='GAP' ? 'B' : classify(r)), auto: !ov };
+  });
   const A = h.is.netSales;
   const sum = k => rows.filter(r=>r.cls===k).reduce((s,r)=>s+r.v,0);
   const B=sum('B'), C=sum('C'), D=sum('D'), E=sum('E'), Fv=sum('F');

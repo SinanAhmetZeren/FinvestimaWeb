@@ -4,6 +4,7 @@ import { RevenueChart, Bridge } from '../charts.jsx';
 import { contribution, LEVELS } from '../engine/contribution.js';
 import { lineOf, accName, BS_ASSETS, BS_LIABS } from '../engine/accounts.js';
 import { flow } from '../engine/ledger.js';
+import { useSaveContributionClassificationsMutation } from '../../slices/ValuatorProSlice.js';
 
 const LINE_LABEL = {};
 [...BS_ASSETS, ...BS_LIABS].forEach(s => s.lines.forEach(l => { LINE_LABEL[l.k] = l.n; }));
@@ -179,6 +180,9 @@ export function L4Income({ hist, st, up, print }){
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [modalKey]);
+  const [saveClassifications, { isLoading: savingCls }] = useSaveContributionClassificationsMutation();
+  const Hpre = hist.find(h=>h.year===cy) || hist[hist.length-1];
+  const ctPre = hist.length ? contribution(Hpre, st.contrib) : { rows: [] };
   if (!hist.length) return noData;
   const c = (h, v) => mode==='TL' ? v/1000 : mode==='USD' ? v/(h.fx.avg||1)/1000 : v/(h.is.netSales||1);
   const fmt = mode==='PCT' ? (x=>pc(x)) : par;
@@ -209,8 +213,8 @@ export function L4Income({ hist, st, up, print }){
     R('Vergi karşılığı (−)', h=>-h.is.tax, 'kid', null, [{from:691,to:691,s:-1}]),
     R('Net dönem kârı', h=>h.is.net, 'sum'),
   ];
-  const H = hist.find(h=>h.year===cy) || hist[hist.length-1];
-  const ct = contribution(H, st.contrib);
+  const H = Hpre;
+  const ct = ctPre;
   const setCls = (d, v) => up(s => ({ contrib: { ...s.contrib, [d]: v } }));
   const lastU = hist[hist.length-1].usd;
   const recon = hist.map(h => { const ms = st.monthly.filter(m=>m.y===h.year); return ms.length===12 ? { y:h.year, rep: ms.reduce((s,m)=>s+m.rev,0), miz: h.is.netSales, mat: ms.reduce((s,m)=>s+m.mat,0), mat7: h.is.cost7.mat } : null; }).filter(Boolean);
@@ -253,10 +257,11 @@ export function L4Income({ hist, st, up, print }){
             <div key={n}><span className="kn">{n}</span><b>{pc(v/(ct.A||1))}</b><span className="kf">{f} · {nf(v/1e6,1)} M ₺</span></div>))}
         </div>
         <div className="scroll"><table className="g">
-          <thead><tr className="hd solo"><th className="lbl">Gider alt hesabı</th><th className="n">bin TL</th><th className="n">% ciro</th><th>Seviye</th></tr></thead>
+          <thead><tr className="hd solo"><th className="lbl">Gider alt hesabı</th><th className="n">bin TL</th><th className="n">% ciro</th><th>Seviye</th><th></th></tr></thead>
           <tbody>{ct.rows.map(r => (
             <tr key={r.d}><td className="lbl"><code>{r.code}</code> {r.name}</td><td className="n">{nf(r.v/1000)}</td><td className="n">{pc(r.v/(ct.A||1))}</td>
-              <td><select className={'csel'+(r.auto?'':' set')} value={r.cls} onChange={e=>setCls(r.d, e.target.value)}>{Object.entries(LEVELS).map(([k,n])=><option key={k} value={k}>{k} · {n}</option>)}</select></td></tr>))}</tbody>
+              <td><select className={'csel'+(r.auto?'':' set')} value={r.cls} onChange={e=>setCls(r.d, e.target.value)}>{Object.entries(LEVELS).map(([k,n])=><option key={k} value={k}>{k} · {n}</option>)}</select></td>
+              <td>{r.d!=='GAP' && <button type="button" className="lnk" disabled={savingCls} onClick={()=>saveClassifications({ valuationTaskId: st.valuationTaskId, year: H.year, items: [{ code: r.code, contributionClass: r.cls, isManual: true }] })}>Kaydet</button>}</td></tr>))}</tbody>
           <tfoot><tr><td colSpan="4">A net satışlardır. Sınıflama ad anahtarlarıyla önerilir, her satır değiştirilebilir. 7/A tutarları stok değişimi nedeniyle 62x maliyetten farklı olabilir; seviyeler yönetsel analiz içindir.</td></tr></tfoot>
         </table></div>
       </>) : <Empty title="Alt hesap yok">Katkı seviyeleri için 7'li hesapların alt kırılımlarını içeren detay mizan gerekir. Beyannamede bu kırılım bulunmaz.</Empty>}
