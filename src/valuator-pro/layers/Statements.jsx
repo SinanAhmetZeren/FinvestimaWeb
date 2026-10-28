@@ -386,8 +386,8 @@ export function L4Income({ hist, st, up, print }){
               onBlur={e=>{ const t=e.target.value.trim(); const v=parseFloat(t.replace(/\./g,'').replace(',','.')); up(s=>({ daOverride: { ...s.daOverride, [h.year]: t==='' ? null : (isFinite(v)? v*1000 : null) } })); }} />
           </div>))}
         <div style={{display:'flex',gap:8,marginTop:10}}>
-          <button className="ibtn" style={{flex:1,marginTop:0}} disabled={!st.valuationTaskId || !daTouched} onClick={()=>{ saveDaOverrideMut({ valuationTaskId: st.valuationTaskId, rows: Object.entries(st.daOverride||{}).filter(([,v])=>v!=null).map(([year,amount])=>({ year:+year, amount })) }); setDaTouched(false); }}>Kaydet</button>
           <button className="ibtn" style={{flex:1,marginTop:0,background:'var(--teal)',borderColor:'var(--teal)'}} disabled={!daTouched && !Object.values(st.daOverride||{}).some(v=>v!=null)} onClick={()=>setDaConfirm(true)}>Geri al</button>
+          <button className="ibtn" style={{flex:1,marginTop:0}} disabled={!st.valuationTaskId || !daTouched} onClick={()=>{ saveDaOverrideMut({ valuationTaskId: st.valuationTaskId, rows: Object.entries(st.daOverride||{}).filter(([,v])=>v!=null).map(([year,amount])=>({ year:+year, amount })) }); setDaTouched(false); }}>Kaydet</button>
         </div>
       </div>
       <div className="iblk"><h4>Geri eklemeler{st.addbacks.length>0 && <span className="ab-chip" style={{marginLeft:6}}>{st.addbacks.length}</span>}</h4>

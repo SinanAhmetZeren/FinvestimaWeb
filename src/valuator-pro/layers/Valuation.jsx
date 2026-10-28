@@ -520,7 +520,7 @@ export function L7Audit({ hist, st, up, V, audit, print, setPrinting }){
         <div className="sub">Skor değerin yanlış olduğunu söylemez; hangi noktalarda kanıtla desteklenmesi gerektiğini gösterir.</div></div>
       <div className="iblk"><h4>Çıktı paketi</h4>
         <button className="ibtn" disabled={!hist.length} onClick={()=>exportWorkbook({ company:st.company, hist, V, A:st.asm, audit })}>Excel çalışma kitabını indir</button>
-        <button className="ibtn ghost" disabled={!V} onClick={()=>setPrinting(true)}>Raporu yazdır ya da PDF kaydet</button>
+        <button className="ibtn" style={{ background:'var(--teal)', borderColor:'var(--teal)' }} disabled={!V} onClick={()=>setPrinting(true)}>Raporu yazdır ya da PDF kaydet</button>
       </div>
       <div className="iblk"><h4>İşlemler</h4>
         <button className="ibtn ghost" onClick={()=>up({ closed: audit.findings.map(f=>f.id) })}>Tüm bulguları kapat</button>
