@@ -16,9 +16,9 @@ export const pc = (x, d=1) => (x==null||!isFinite(x)) ? '—' : '%'+nf(x*100,d);
 export const mx = (x, d=1) => (x==null||!isFinite(x)) ? '—' : nf(x,d)+'x';
 export const mUsd = x => (x==null||!isFinite(x)) ? '—' : nf(x/1000, 1)+' M$';
 
-export function Panel({ title, sub, right, children, flush, id }){
+export function Panel({ title, sub, right, children, flush, id, className }){
   return (
-    <section className="panel" id={id}>
+    <section className={'panel'+(className?' '+className:'')} id={id}>
       {(title||right) && <header><h2>{title}</h2>{sub && <span className="sub">{sub}</span>}{right && <div className="right">{right}</div>}</header>}
       <div className={flush ? 'pbody flush' : 'pbody'}>{children}</div>
     </section>
