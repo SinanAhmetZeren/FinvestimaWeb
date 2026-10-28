@@ -72,9 +72,9 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
     <Panel title="Projeksiyon" sub="bin USD; gerçekleşen yıllar normalize" flush>
       <FinTable head={head} band={band} rows={rows} note={`Baz yıl ${B.year}. Maliyet oranları başlangıçtan hedefe doğrusal ilerler. Yeni yatırımlar ${A.daLife} yılda amortismana tabi tutulur. ${A.midYear?'Nakit akımları yıl ortasında gerçekleşmiş kabul edilir.':''}`} />
     </Panel>
-    <div className="two">
-      <Panel title="Ciro ve FAVÖK marjı" sub="gerçekleşen ve projeksiyon"><RevenueChart data={[...H3.map((h,i)=>({ l:String(h.year), rev:HU[i].rev, margin:HU[i].ebitda/HU[i].rev })), ...P.rows.map(r=>({ l:String(r.year), rev:r.rev, margin:r.margin, proj:true }))]} /></Panel>
-      <Panel title="Sürücü sınaması" sub="her varsayım son üç yılla karşılaştırılır" flush>
+    <div className="print-page two">
+      <Panel title="Ciro ve FAVÖK marjı" sub="gerçekleşen ve projeksiyon" className="print-narrow print-chart-sm"><RevenueChart data={[...H3.map((h,i)=>({ l:String(h.year), rev:HU[i].rev, margin:HU[i].ebitda/HU[i].rev })), ...P.rows.map(r=>({ l:String(r.year), rev:r.rev, margin:r.margin, proj:true }))]} /></Panel>
+      <Panel title="Sürücü sınaması" sub="her varsayım son üç yılla karşılaştırılır" flush className="print-narrow">
         <div className="scroll"><table className="g">
           <thead><tr className="hd solo"><th className="lbl">Sürücü</th><th className="n">Tarihsel ort.</th><th className="n">Baz yıl</th><th className="n">Hedef</th><th></th></tr></thead>
           <tbody>{drv.map(d => { const out = d.r && (d.yn < d.r[0]-0.02 || d.yn > d.r[1]+0.02); return (
@@ -334,7 +334,7 @@ export function L6Valuation({ hist, st, up, V, print }){
   const pickSens = (w, g) => setA({ tg: g, tvMethod:'gordon', wacc: { ...A.wacc, manual:true, value:w } });
 
   const body = (<>
-    <div className="methods">
+    <div className="print-page methods">
       {cards.map(c => (
         <div className="mcard" key={c.k}>
           <span className="mn">{c.n}</span>
@@ -353,27 +353,27 @@ export function L6Valuation({ hist, st, up, V, print }){
     <Panel title="Değer aralıkları" sub="özkaynak değeri; çubuk duyarlılık ya da emsal aralığını, çizgi seçili değeri gösterir">
       <FootballField items={ff} marker={V.eq} />
     </Panel>
-    <Panel title="Nakit akımı ve değer köprüsü" sub="bin USD" flush>
+    <Panel title="Nakit akımı ve değer köprüsü" sub="bin USD" flush className="print-narrow">
       <FinTable head={fcfHead} rows={fcfRows} />
       <div className="pbody"><Bridge steps={[{l:'BD nakit akımı',v:V.D.pvSum},{l:'BD terminal değer',v:V.D.pvTv},{l:'Firma değeri',v:V.D.ev,total:true},{l:'Net borç',v:-V.nd},{l:'Özkaynak',v:V.m1.eq,total:true}]} />
         <p className="muted small">Terminal değer {nf(V.D.tv)} bin USD ({A.tvMethod==='exit' ? `zımni büyüme ${pc(V.D.impliedG)}` : `zımni çıkış çarpanı ${mx(V.D.impliedExit)}`}). Ortalama ROIC {pc(V.avgRoic)}, WACC {pc(P.w)}: {V.avgRoic>P.w ? 'büyüme değer yaratıyor.' : 'getiri sermaye maliyetinin altında; büyüme değeri azaltıyor.'}</p></div>
     </Panel>
-    <div className="two">
-      <Panel title="Duyarlılık: WACC ve terminal büyüme" sub={print?'özkaynak, M USD':'hücreye tıklayarak varsayımı seçin; özkaynak, M USD'} flush>
+    <div className="print-page two">
+      <Panel className="print-narrow" title="Duyarlılık: WACC ve terminal büyüme" sub={print?'özkaynak, M USD':'hücreye tıklayarak varsayımı seçin; özkaynak, M USD'} flush>
         <div className="scroll"><table className="g sens">
           <thead><tr className="hd solo"><th className="lbl">WACC \ g</th>{V.gSteps.map(g=><th key={g} className="n">{pc(g)}</th>)}</tr></thead>
           <tbody>{V.wSteps.map((w,i)=>(<tr key={w}><td className="lbl">{pc(w)}</td>{V.sens[i].map((v,j)=>(
             <td key={j} className={'n cell'+(i===2&&j===2?' sel':'')} onClick={()=>!print && pickSens(w, V.gSteps[j])}>{isFinite(v) ? nf(v/1000,1) : '—'}</td>))}</tr>))}</tbody>
         </table></div>
       </Panel>
-      <Panel title="Duyarlılık: FAVÖK çarpanı" sub="özkaynak, M USD" flush>
+      <Panel title="Duyarlılık: FAVÖK çarpanı" sub="özkaynak, M USD" flush className="print-narrow">
         <div className="scroll"><table className="g sens">
           <thead><tr className="hd solo"><th className="lbl">FAVÖK tabanı</th>{V.multSteps.map(m=><th key={m} className="n">{mx(m)}</th>)}</tr></thead>
           <tbody>{[`${B.year} normalize`, `${B.year+1}T ileri`].map((l,i)=>(<tr key={l}><td className="lbl">{l}</td>{V.sensM[i].map((v,j)=><td key={j} className={'n'+(j===2&&((i===0)===(A.mult.basis!=='fwd'))?' sel':'')}>{nf(v/1000,1)}</td>)}</tr>))}</tbody>
         </table></div>
       </Panel>
     </div>
-    <Panel title="Emsal çarpanlar" sub={print?'EV / FAVÖK':'satıra tıklayarak medyanı uygulayın; EV / FAVÖK'} flush
+    <Panel title="Emsal çarpanlar" sub={print?'EV / FAVÖK':'satıra tıklayarak medyanı uygulayın; EV / FAVÖK'} flush className="print-narrow print-wrap-last"
       right={!print && <>
         {cmRows && <button type="button" className="btn" style={{ background:'var(--teal)', borderColor:'var(--teal)', padding:'3px 10px', fontSize:11 }} onClick={()=>setCmResultOpen(true)}>Sonuçları gör</button>}
         <button type="button" className="btn" disabled={cmLoading} onClick={()=>setCmOpen(true)} style={{
@@ -385,7 +385,7 @@ export function L6Valuation({ hist, st, up, V, print }){
         }}>{cmLoading ? (CM_POLL_LABELS[cmStatus] || cmStatus) : 'Araştır'}</button>
       </>}>
       <div className="scroll"><table className="g">
-        <thead><tr className="hd solo"><th></th><th className="lbl">Kategori</th><th className="n">Alt</th><th className="n">Üst</th><th className="n">Medyan</th><th className="n">
+        <thead><tr className="hd solo">{!print && <th></th>}<th className="lbl">Kategori</th><th className="n">Alt</th><th className="n">Üst</th><th className="n">Medyan</th><th className="n">
           <span style={{ cursor:'default' }}
             onMouseEnter={e=>{ const r=e.currentTarget.getBoundingClientRect(); setCmZHint({ x:r.right, y:r.top }); }}
             onMouseLeave={()=>setCmZHint(null)}>
@@ -395,7 +395,7 @@ export function L6Valuation({ hist, st, up, V, print }){
         <tbody>
           {cmTable.map((r,i) => { const fromAi = !!(r.sourceUrl || r.sourceBasis || r.isEstimate); const sel = cmSelectedRow === (r.id || i); return (
           <tr key={r.id || i} className={'click'+(sel?' selrow':'')} onClick={()=>{ setCmSelectedRow(r.id || i); setA({ mult: { ...A.mult, sector: undefined, value: +r.median || A.mult.value } }); }}>
-            <td><button type="button" className="btn" style={{ background:'var(--teal)', borderColor:'var(--teal)', padding:'3px 4px', fontSize:11, width:50, boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center' }} onClick={e=>{ e.stopPropagation(); removeCmRow(i); }}>Kaldır</button></td>
+            {!print && <td><button type="button" className="btn" style={{ background:'var(--teal)', borderColor:'var(--teal)', padding:'3px 4px', fontSize:11, width:50, boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center' }} onClick={e=>{ e.stopPropagation(); removeCmRow(i); }}>Kaldır</button></td>}
             <td className="lbl">{fromAi ? r.category : <input className="ninp" style={{ width:'100%', textAlign:'left' }} value={r.category} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{category:e.target.value})} />}</td>
             <td className="n">{fromAi ? mx(r.rangeLow) : <input className="ninp" style={{ width:60 }} type="number" step="0.1" value={r.rangeLow} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{rangeLow:e.target.value})} />}</td>
             <td className="n">{fromAi ? mx(r.rangeHigh) : <input className="ninp" style={{ width:60 }} type="number" step="0.1" value={r.rangeHigh} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{rangeHigh:e.target.value})} />}</td>
@@ -404,7 +404,7 @@ export function L6Valuation({ hist, st, up, V, print }){
             <td>{fromAi ? (r.vintage||'—') : <input className="ninp" style={{ width:70 }} value={r.vintage||''} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{vintage:e.target.value})} />}</td>
             <td className="lbl">{fromAi ? (r.sourceUrl ? <a href={r.sourceUrl} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}>{r.sourceBasis}</a> : r.sourceBasis) : <input className="ninp" style={{ width:'100%', textAlign:'left' }} value={r.sourceBasis||''} onClick={e=>e.stopPropagation()} onChange={e=>editCmRow(i,{sourceBasis:e.target.value})} />}</td>
           </tr>); })}
-          <tr className="warnrow">
+          {!print && <tr className="warnrow">
             <td><button type="button" className="btn" style={{ padding:'3px 4px', fontSize:11, width:50, boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center' }} disabled={cmSaving || !cmDraft.category} onClick={saveCmDraft}>{cmSaving ? '…' : 'Kaydet'}</button></td>
             <td className="lbl"><input className="ninp" style={{ width:'100%', textAlign:'left' }} placeholder="Kategori" value={cmDraft.category} onChange={e=>setCmDraft(d=>({...d,category:e.target.value}))} /></td>
             <td className="n"><input className="ninp" style={{ width:60 }} type="number" step="0.1" value={cmDraft.rangeLow} onChange={e=>setCmDraft(d=>({...d,rangeLow:e.target.value}))} /></td>
@@ -413,9 +413,9 @@ export function L6Valuation({ hist, st, up, V, print }){
             <td className="n"></td>
             <td><input className="ninp" style={{ width:70 }} placeholder="Dönem" value={cmDraft.vintage} onChange={e=>setCmDraft(d=>({...d,vintage:e.target.value}))} /></td>
             <td className="lbl"><input className="ninp" style={{ width:'100%', textAlign:'left' }} placeholder="Kaynak/baz" value={cmDraft.sourceBasis} onChange={e=>setCmDraft(d=>({...d,sourceBasis:e.target.value}))} /></td>
-          </tr>
+          </tr>}
         </tbody>
-        <tfoot><tr><td colSpan="8">"Araştır" (AI) sonuçlarında "Kullan" ya da elle doldurup en alttaki satırda "Kaydet"e basarak ekleyin.</td></tr></tfoot>
+        {!print && <tfoot><tr><td colSpan="8">"Araştır" (AI) sonuçlarında "Kullan" ya da elle doldurup en alttaki satırda "Kaydet"e basarak ekleyin.</td></tr></tfoot>}
       </table></div>
     </Panel>
     {cmModal}
@@ -501,7 +501,7 @@ export function L7Audit({ hist, st, up, V, audit, print, setPrinting }){
   const body = (
     <Panel title="Denetim bulguları" sub={`${audit.findings.filter(f=>!f.closed).length} açık`} right={!print && <Seg small value={flt} onChange={setFlt} options={[{v:'all',l:'Tümü'},{v:'open',l:'Açık'},{v:'crit',l:'Kritik'}]} />} flush>
       {F.length===0 ? <Empty title="Bulgu yok">Bu filtreyle eşleşen bulgu bulunmuyor.</Empty> : (
-        <ul className="findings">{F.map(f => (
+        <ul className="findings print-findings-2col">{F.map(f => (
           <li key={f.id} className={'f-'+f.sev+(f.closed?' closed':'')}>
             <div className="fh"><span className={'sev '+f.sev}>{sevL[f.sev]}</span><Tag>{f.layer}</Tag><b>{f.title}</b>
               {!print && <button className="lnk" onClick={()=>toggle(f.id)}>{f.closed ? 'Yeniden aç' : 'Kapat'}</button>}</div>
@@ -540,22 +540,22 @@ export function PrintAssumptions({ hist, st, V }){
   const A = st.asm, B = V.B, W = V.P.W;
   const SCEN = { pess:'Kötümser', base:'Baz', opt:'İyimser', custom:'Elle değiştirilmiş' };
   return (
-    <div className="left">
-      <Panel title="Varsayım girdileri" sub={`Baz yıl ${B.year}, ${A.N} yıllık projeksiyon · Senaryo: ${SCEN[A.scenario]||A.scenario}`} flush>
+    <div className="left print-assumptions-tight">
+      <Panel title="Varsayım girdileri" sub={`Baz yıl ${B.year}, ${A.N} yıllık projeksiyon · Senaryo: ${SCEN[A.scenario]||A.scenario}`} flush className="print-narrow">
         <div className="scroll"><table className="g">
           <thead><tr className="hd solo"><th className="lbl">Gelir büyümesi</th><th className="n">Oran</th></tr></thead>
           <tbody>{A.growth.slice(0, A.N).map((g,i) => (
             <tr key={i}><td className="lbl">{B.year+i+1}</td><td className="n">{pc(g)}</td></tr>))}</tbody>
         </table></div>
       </Panel>
-      <Panel title={`Maliyet / ciro hedefi (${B.year+A.N})`} flush>
+      <Panel title={`Maliyet / ciro hedefi (${B.year+A.N})`} flush className="print-narrow">
         <div className="scroll"><table className="g">
           <thead><tr className="hd solo"><th className="lbl">Kalem</th><th className="n">Baz</th><th className="n">Hedef</th></tr></thead>
           <tbody>{COSTS.filter(([k])=>k!=='rnd'||A.costs.rnd.s>0).map(([k,n]) => (
             <tr key={k}><td className="lbl">{n}</td><td className="n">{pc(A.costs[k].s)}</td><td className="n">{pc(A.costs[k].e)}</td></tr>))}</tbody>
         </table></div>
       </Panel>
-      <Panel title="Yatırım, sermaye, vergi" flush>
+      <Panel title="Yatırım, sermaye, vergi" flush className="print-narrow">
         <div className="scroll"><table className="g"><tbody>
           <tr><td className="lbl">Yatırım / ciro</td><td className="n">{pc(A.capexPct)}</td></tr>
           <tr><td className="lbl">Net işletme sermayesi / ciro</td><td className="n">{pc(A.nwcPct)}</td></tr>
@@ -564,7 +564,7 @@ export function PrintAssumptions({ hist, st, V }){
           <tr><td className="lbl">Kurumlar vergisi</td><td className="n">{pc(A.taxRate)}</td></tr>
         </tbody></table></div>
       </Panel>
-      <Panel title="İskonto oranı (WACC)" flush>
+      <Panel title="İskonto oranı (WACC)" flush className="print-narrow">
         <div className="scroll"><table className="g"><tbody>
           <tr><td className="lbl">Risksiz oran</td><td className="n">{pc(A.wacc.rf)}</td></tr>
           <tr><td className="lbl">Özkaynak risk primi</td><td className="n">{pc(A.wacc.erp)}</td></tr>
@@ -576,7 +576,7 @@ export function PrintAssumptions({ hist, st, V }){
           <tr className="sum"><td className="lbl">Hesaplanan WACC</td><td className="n">{pc(W.value)}</td></tr>
         </tbody></table></div>
       </Panel>
-      <Panel title="Terminal değer ve çarpanlar" flush>
+      <Panel title="Terminal değer ve çarpanlar" flush className="print-narrow">
         <div className="scroll"><table className="g"><tbody>
           <tr><td className="lbl">Yöntem</td><td className="n">{A.tvMethod==='gordon'?'Sürekli büyüme':'Çıkış çarpanı'}</td></tr>
           {A.tvMethod==='gordon'
@@ -590,7 +590,7 @@ export function PrintAssumptions({ hist, st, V }){
           <tr><td className="lbl">Maddi olmayan varlıklar dışlandı mı</td><td className="n">{A.na.excludeIntang?'Evet':'Hayır'}</td></tr>
         </tbody></table></div>
       </Panel>
-      <Panel title="Yöntem ağırlıkları" flush>
+      <Panel title="Yöntem ağırlıkları" flush className="print-narrow">
         <div className="scroll"><table className="g"><tbody>
           <tr><td className="lbl">İndirgenmiş nakit akımı</td><td className="n">{pc(A.weights.dcf)}</td></tr>
           <tr><td className="lbl">FAVÖK çarpanı</td><td className="n">{pc(A.weights.mult)}</td></tr>

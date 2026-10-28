@@ -71,12 +71,12 @@ export function L3Balance({ hist, st, up, print }){
   const unit = displayCur==='TL' ? 'bin TL' : "bin USD, yıl sonu kuru";
   const last = hist[hist.length-1];
   const body = (<>
-    <Panel title="Bilanço özeti" sub={unit} right={!print && <Seg small value={cur} onChange={setCur} options={[{v:'TL',l:'TL'},{v:'USD',l:'USD'}]} />} flush>
+    <Panel title="Bilanço özeti" sub={unit} right={!print && <Seg small value={cur} onChange={setCur} options={[{v:'TL',l:'TL'},{v:'USD',l:'USD'}]} />} flush className="print-narrow">
       <FinTable head={head} rows={rows} firstLabel="" onRowClick={r=>setModalKey(r)} note={cur==='USD' ? 'Bilanço kalemleri yıl sonu kuruyla çevrildi: '+hist.map(h=>`${h.year} ${nf(h.fx.end,4)}`).join(', ')+'.' : 'Tekdüzen hesap planı gruplarıyla, mizan net bakiyelerinden üretildi.'} />
     </Panel>
     <div className="print-page">
-      <Panel title="Değerlemeye giden bilanço kalemleri" sub={unit} flush><FinTable head={head} rows={vrows} onRowClick={r=>setModalKey(r)} /></Panel>
-      <Panel title="Finansal oranlar" flush><FinTable head={head} rows={krows} fmt={x=>nf(x,2)} onRowClick={r=>setModalKey(r)} /></Panel>
+      <Panel title="Değerlemeye giden bilanço kalemleri" sub={unit} flush className="print-narrow"><FinTable head={head} rows={vrows} onRowClick={r=>setModalKey(r)} /></Panel>
+      <Panel title="Finansal oranlar" flush className="print-narrow"><FinTable head={head} rows={krows} fmt={x=>nf(x,2)} onRowClick={r=>setModalKey(r)} /></Panel>
     </div>
   </>);
   if (print) return <div className="left">{body}</div>;
@@ -235,14 +235,15 @@ export function L4Income({ hist, st, up, print }){
   const unit = displayMode==='TL' ? 'bin TL' : displayMode==='USD' ? 'bin USD, yıl ortalaması kuru' : 'net satışlara oran';
 
   const body = (<>
-    <Panel title="Normalize gelir tablosu" sub={unit} right={!print && <Seg small value={mode} onChange={setMode} options={[{v:'TL',l:'TL'},{v:'USD',l:'USD'},{v:'PCT',l:'% ciro'}]} />} flush>
+    <Panel title="Normalize gelir tablosu" sub={unit} right={!print && <Seg small value={mode} onChange={setMode} options={[{v:'TL',l:'TL'},{v:'USD',l:'USD'},{v:'PCT',l:'% ciro'}]} />} flush className="print-narrow">
       <FinTable head={head} rows={rows} fmt={fmt} onRowClick={r=>setModalKey(r)} note="Gelir tablosu 6'lı hesaplardan, amortisman 7'li hesapların 'amortisman' alt hesaplarından okunur. Geri eklemeler FAVÖK'ün içine karıştırılmaz, kendi satırında durur." />
     </Panel>
+    <Panel title="Ciro ve FAVÖK marjı" sub="USD" className="print-narrow print-chart-sm"><RevenueChart data={hist.map(h=>({ l:String(h.year), rev:h.usd.rev, margin:h.kpi.ebitdaM }))} /></Panel>
+    <div className="print-page">
     <div className="two">
-      <Panel title="Ciro ve FAVÖK marjı" sub="USD"><RevenueChart data={hist.map(h=>({ l:String(h.year), rev:h.usd.rev, margin:h.kpi.ebitdaM }))} /></Panel>
-      <Panel title={`${hist[hist.length-1].year} FAVÖK köprüsü`} sub="milyon USD"><Bridge unit="M USD" steps={[{l:'FVÖK',v:lastU.ebit,total:true},{l:'Amortisman',v:lastU.da},{l:'Geri ekleme',v:lastU.addb},...(st.fxInEbitda?[{l:'Kur farkı',v:lastU.ebitdaAdj-lastU.ebitda-lastU.addb}]:[]),{l:'Normalize FAVÖK',v:lastU.ebitdaAdj,total:true}]} /></Panel>
+      <Panel title={`${hist[hist.length-1].year} FAVÖK köprüsü`} sub="milyon USD" className="print-narrow"><Bridge unit="M USD" steps={[{l:'FVÖK',v:lastU.ebit,total:true},{l:'Amortisman',v:lastU.da},{l:'Geri ekleme',v:lastU.addb},...(st.fxInEbitda?[{l:'Kur farkı',v:lastU.ebitdaAdj-lastU.ebitda-lastU.addb}]:[]),{l:'Normalize FAVÖK',v:lastU.ebitdaAdj,total:true}]} /></Panel>
     </div>
-    <Panel title="Maliyet yapısı (7/A)" sub={unit} flush>
+    <Panel title="Maliyet yapısı (7/A)" sub={unit} flush className="print-narrow">
       <FinTable head={head} rows={[
         R('Direkt ilk madde ve malzeme (710)', h=>h.is.cost7.mat, 'kid'),
         R('Direkt işçilik (720)', h=>h.is.cost7.lab, 'kid'),
@@ -264,7 +265,7 @@ export function L4Income({ hist, st, up, print }){
         { l:'Mizan 710 direkt malzeme', v: recon.map(r=>r.mat7/1000) },
       ]} note="Değerleme mizanı esas alır. Fark iade ve iskontolar, KDV, grup içi satışlar ya da dönemsellikten kaynaklanabilir; mutabakat yapılmadan rapor rakamı kullanılmamalıdır." />
     </Panel>}
-    <Panel title="Katkı seviyeleri" sub={`${H.year}, gider alt hesaplarından`} right={!print && <Seg small value={H.year} onChange={setCy} options={hist.map(h=>({v:h.year,l:String(h.year)}))} />} flush>
+    <Panel title="Katkı seviyeleri" sub={`${H.year}, gider alt hesaplarından`} right={!print && <Seg small value={H.year} onChange={setCy} options={hist.map(h=>({v:h.year,l:String(h.year)}))} />} flush className="print-narrow">
       {ct.rows.length ? (<>
         <div className="kband">
           {[['Katkı 1','A − B',ct.k1],['Katkı 2','A − B − C',ct.k2],['Katkı 3','A − B … E',ct.k3],['Katkı 4','A − B … F',ct.k4]].map(([n,f,v])=>(
@@ -280,6 +281,7 @@ export function L4Income({ hist, st, up, print }){
         </table></div>
       </>) : <Empty title="Alt hesap yok">Katkı seviyeleri için 7'li hesapların alt kırılımlarını içeren detay mizan gerekir. Beyannamede bu kırılım bulunmaz.</Empty>}
     </Panel>
+    </div>
   </>);
   if (print) return <div className="left">{body}</div>;
 
