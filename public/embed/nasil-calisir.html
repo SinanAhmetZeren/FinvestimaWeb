@@ -80,6 +80,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .scene{position:absolute;inset:0;padding:22px;opacity:0;transition:opacity .35s}
 .scene.on{opacity:1}
 .foot{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.ctrl,.prog{opacity:0}
 .ctrl{display:flex;gap:8px}
 .cbtn{width:40px;height:40px;border-radius:50%;border:1px solid var(--line2);background:rgba(2,20,51,.6);display:grid;place-items:center}
 .cbtn:hover{border-color:var(--gold)}
@@ -129,7 +130,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .wires path{fill:none;stroke:var(--teal);stroke-width:1.3;stroke-dasharray:140;stroke-dashoffset:140;opacity:.75}
 .play .wires path{animation:draw .9s ease forwards;animation-delay:var(--d)}
 @keyframes draw{to{stroke-dashoffset:0}}
-.checks{position:absolute;left:22px;right:22px;bottom:18px;display:flex;gap:10px;flex-wrap:wrap}
+.checks{position:absolute;left:22px;right:22px;bottom:18px;display:flex;gap:8px;flex-wrap:nowrap}
+.checks .chip{padding:7px 9px;font-size:12px;white-space:nowrap;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
 
 /* L3 */
 .s3{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;height:100%;align-items:end}
@@ -508,6 +510,10 @@ $('canvas').addEventListener('touchstart', function(e){ sx = e.touches[0].client
 $('canvas').addEventListener('touchend', function(e){ if (sx === null) return; var dx = e.changedTouches[0].clientX - sx; if (Math.abs(dx) > 50){ setPlaying(false); render(cur + (dx<0?1:-1)); } sx = null; });
 
 window.addEventListener('resize', function(){ movePulse(); postHeight(); });
+// Üst sayfadaki ok butonları buradan katman değiştirebilsin (L1-L7'ye tıklamakla aynı işi yapar)
+window.addEventListener('message', function(e){
+  if (e.data && e.data.type === 'fv-nasil-nav'){ setPlaying(false); render(cur + e.data.dir); }
+});
 
 // iframe içindeyse yüksekliği üst sayfaya bildir
 function postHeight(){ if (window.parent !== window){ try { window.parent.postMessage({ type:'fv-nasil-height', h: document.documentElement.scrollHeight }, '*'); } catch(e){} } }

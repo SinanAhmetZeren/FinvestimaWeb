@@ -18,13 +18,10 @@ export const emailDomain = e => (String(e).trim().toLowerCase().match(/^[^\s@]+@
 export function domainCheck(email, website){
   const h = hostOf(website || ''), d = emailDomain(email || '');
   if (!d) return { ok:false, msg:'Geçerli bir e-posta adresi girin.' };
-  // Ücretsiz e-posta sağlayıcı kısıtlaması kaldırıldı (istenerek) — FREE_MAIL listesi duruyor, gerekirse geri açılabilir.
-  // if (FREE_MAIL.includes(d)) return { ok:false, msg:'Ücretsiz e-posta sağlayıcıları kabul edilmiyor. Firmanızın kurumsal adresini kullanın.' };
-  // E-posta/website domain eşleşme zorunluluğu da kaldırıldı (istenerek) — h hâlâ hesaplanıyor (placeholder'da kullanılıyor).
-  // if (!h) return { ok:false, msg:'Önce geçerli bir firma web sitesi girin.' };
-  // const ok = d === h || d.endsWith('.' + h) || h.endsWith('.' + d);
-  // return ok ? { ok:true, msg:`Alan adı doğrulandı: ${d}` } : { ok:false, msg:`E-posta adresi firmanızın alan adıyla bitmeli: …@${h}` };
-  return { ok:true, msg:'' };
+  if (FREE_MAIL.includes(d)) return { ok:false, msg:'Ücretsiz e-posta sağlayıcıları kabul edilmiyor. Firmanızın kurumsal adresini kullanın.' };
+  if (!h) return { ok:false, msg:'Önce geçerli bir firma web sitesi girin.' };
+  const ok = d === h || d.endsWith('.' + h) || h.endsWith('.' + d);
+  return ok ? { ok:true, msg:`Alan adı doğrulandı: ${d}` } : { ok:false, msg:`E-posta adresi firmanızın alan adıyla bitmeli: …@${h}` };
 }
 
 export function passwordCheck(p){

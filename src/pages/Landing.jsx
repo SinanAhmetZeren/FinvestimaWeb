@@ -138,15 +138,35 @@ function NasilCalisirEmbed() {
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, []);
+  const nav = (dir) => ref.current?.contentWindow?.postMessage({ type: "fv-nasil-nav", dir }, "*");
+
   return (
     <section className="wrap" style={{ padding: "0 0 40px" }}>
-      <iframe
-        ref={ref}
-        src="/embed/nasil-calisir.html"
-        title="Valuator nasıl çalışır"
-        style={{ width: "100%", border: 0, height: 760 }}
-        loading="lazy"
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          type="button"
+          aria-label="Önceki katman"
+          onClick={() => nav(-1)}
+          style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: "50%", border: "1px solid #1D3D72", background: "#031E47", color: "#B9C7DE", display: "grid", placeItems: "center", cursor: "pointer" }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+        <iframe
+          ref={ref}
+          src="/embed/nasil-calisir.html"
+          title="Valuator nasıl çalışır"
+          style={{ width: "100%", border: 0, height: 760 }}
+          loading="lazy"
+        />
+        <button
+          type="button"
+          aria-label="Sonraki katman"
+          onClick={() => nav(1)}
+          style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: "50%", border: "1px solid #1D3D72", background: "#031E47", color: "#B9C7DE", display: "grid", placeItems: "center", cursor: "pointer" }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+      </div>
     </section>
   );
 }
@@ -278,6 +298,8 @@ export default function Landing() {
         </div>
       </section>
 
+      <NasilCalisirEmbed />
+
       {/* ══ NASIL ÇALIŞIR ══ */}
       <section id="nasil">
         <div className="wrap">
@@ -365,8 +387,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
-      <NasilCalisirEmbed />
 
       {/* ══ ÜÇ MERCEK ══ */}
       <section className="tint" id="mercek">
