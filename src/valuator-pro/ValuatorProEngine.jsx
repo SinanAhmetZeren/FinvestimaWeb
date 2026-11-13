@@ -5,10 +5,10 @@ import { setVpLang, setPendingTask, clearPendingTask } from '../slices/VpLangSli
 import { buildLedger } from './engine/ledger.js';
 import { parseWorkbookFile } from './engine/parseExcel.js';
 import { parsePdfFile, ledgerFromItems } from './engine/parsePdf.js';
-import { useUploadTrialBalanceMutation, useLazyGetUploadJobQuery, useLazyGetValuationTaskQuery, useLazyGetAssumptionsQuery, useComputeAssumptionsMutation } from '../slices/ValuatorProSlice.js';
+import { useUploadTrialBalanceMutation, useLazyGetUploadJobQuery, useLazyGetValuationTaskQuery, useLazyGetAssumptionsQuery, useComputeAssumptionsMutation, useUpdateCompanyProfileMutation } from '../slices/ValuatorProSlice.js';
 import { buildHistory, DEFAULT_FX } from './engine/statements.js';
 import { fetchFxSummary } from './engine/fxApi.js';
-import { valuate, runRate } from './engine/valuation.js';
+import { valuate, runRate, defaultAssumptions } from './engine/valuation.js';
 import { runAudit } from './engine/audit.js';
 import { mUsd, pc } from './ui.jsx';
 import { RightColContext } from './rightColContext.js';
@@ -21,6 +21,8 @@ import * as Statements from './layers/Statements.jsx';
 import * as StatementsEn from './layers/Statements_en.jsx';
 import * as Valuation from './layers/Valuation.jsx';
 import * as ValuationEn from './layers/Valuation_en.jsx';
+import Onboarding, { EMPLOYEES, REVENUE, PURPOSES, ROLES } from './auth/Onboarding.jsx';
+import { SECTORS, findSub } from '../data/onboardingSectors.js';
 
 const LAYERS = [
   { k:'L0', n:'İşler', m:'Değerleme seçimi' },
@@ -46,6 +48,9 @@ export default function ValuatorProEngine(){
   // Veri DB'den geliyor (L0'da task seçilince taze çekilir) — localStorage'da ayrıca
   // saklamıyoruz, her girişte sıfırdan başlanır, bayat/çelişkili veri görünmesin diye.
   const [st, setSt] = useState(EMPTY);
+  // A0: L0'dan önceki onboarding adımı — gerçek giriş durumu (Redux/localStorage, aynı
+  // token'ı AuthPage ile paylaşır). Giriş yoksa L0 yerine Onboarding gösterilir.
+  const isLoggedIn = useSelector(s => s.users.isLoggedIn);
   // Her açılışta L0'dan başlanır — kullanıcı kendisine atanmış task'lardan birini seçene kadar
   // L1+'a geçilmez. Admin task açtığı için burada "yeni task" seçeneği yok, sadece seçim var.
   const [layer, setLayer] = useState('L0');
@@ -68,6 +73,7 @@ export default function ValuatorProEngine(){
   const [rightColEl, setRightColEl] = useState(null);
   const [railOpen, setRailOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
   useEffect(() => { if (rightColEl) rightColEl.scrollTop = 0; }, [layer, rightColEl]);
   const up = useCallback(patch => setSt(s => ({ ...s, ...(typeof patch==='function' ? patch(s) : patch) })), []);
   const loadAssumptions = async taskId => {
@@ -104,7 +110,9 @@ export default function ValuatorProEngine(){
       // Kayıtlı (backend'den gelen) varsayımlar bu baz yıl için hâlâ geçerliyse onu kullan —
       // yoksa (ilk yükleme ya da baz yıl değişti) taze hesapla ve backend'e yaz (bkz. SaveAssumptions).
       if (st.savedAsm && st.savedAsm._base === lastYear) {
-        up({ asm: st.savedAsm, baseAsm: st.savedAsm });
+        // baseAsm = gerçek hesaplanmış varsayılan (tarihsel veriden) — kaydedilmiş/özelleştirilmiş
+        // değer değil, yoksa "elle değiştirildi" işaretleri sayfa yenilenince kaybolur.
+        up({ asm: st.savedAsm, baseAsm: { ...defaultAssumptions(hist), _base: lastYear } });
         return;
       }
       // Normalde mizan yazılırken backend otomatik hesaplayıp kaydediyor (bkz.
@@ -161,8 +169,23 @@ export default function ValuatorProEngine(){
     ));
     if (newLedgers.length) up(s => ({ ledgers: newLedgers }));
     const monthly = (task.monthlySales || []).map(m => ({ y: m.year, m: m.month, rev: m.revenue, mat: m.materialCost, opex: m.opex }));
-    up({ monthly });
+    up({ monthly, companyProfile: {
+      name: task.companyName, website: task.companyWebsite, sector: task.companySector, subSector: task.companySubSector,
+      employees: task.companyEmployees, revenue: task.companyRevenue, purpose: task.companyPurpose, reportEmail: task.companyReportEmail,
+      contactFullName: task.companyContactFullName, contactRole: task.companyContactRole, contactPhone: task.companyContactPhone,
+    } });
     setLayer('L1');
+  };
+
+  const openProfile = async () => {
+    if (!st.valuationTaskId) return;
+    const task = await fetchValuationTask(st.valuationTaskId).unwrap().catch(()=>null);
+    if (task) up({ companyProfile: {
+      name: task.companyName, website: task.companyWebsite, sector: task.companySector, subSector: task.companySubSector,
+      employees: task.companyEmployees, revenue: task.companyRevenue, purpose: task.companyPurpose, reportEmail: task.companyReportEmail,
+      contactFullName: task.companyContactFullName, contactRole: task.companyContactRole, contactPhone: task.companyContactPhone,
+    } });
+    setProfileOpen(true);
   };
 
   // Diğer motordan (EN) bir Tekdüzen task seçilip buraya yönlendirilmişse, mount olur
@@ -275,6 +298,8 @@ export default function ValuatorProEngine(){
 
   useEffect(() => { if (printing){ const t = setTimeout(()=>{ window.print(); setPrinting(false); }, 350); return ()=>clearTimeout(t); } }, [printing]);
 
+  if (!isLoggedIn) return null; // PrivateRoute zaten /login'e yönlendirir, buraya ulaşmaz
+
   return (
     <RightColContext.Provider value={rightColEl}>
     <div className={'app vp-root'+(printing?' printing':'')}>
@@ -285,9 +310,9 @@ export default function ValuatorProEngine(){
 
       <div className="main">
         <header className="top">
-          <div className="case">
-            {layer!=='L0' && <input className="cname" value={st.company} placeholder="Şirket adı" onChange={e=>up({company:e.target.value})} aria-label="Şirket adı" />}
-            {layer!=='L0' && <span className="cmeta">{hist.length ? `${hist[0].year}–${hist[hist.length-1].year} tarihsel, USD '000` : 'Henüz veri yüklenmedi'}</span>}
+          <div className="case" style={{ marginLeft: 10 }}>
+            {layer!=='L0' && layer!=='A0' && <input className="cname" value={st.company} placeholder="Şirket adı" onChange={e=>up({company:e.target.value})} aria-label="Şirket adı" />}
+            {layer!=='L0' && layer!=='A0' && hist.length>0 && <span className="cmeta">{`${hist[0].year}–${hist[hist.length-1].year} tarihsel, USD '000`}</span>}
           </div>
           {V && <div className="headline">
             <div><span className="hl">Firma değeri</span><b>{mUsd(V.ev)}</b></div>
@@ -295,6 +320,14 @@ export default function ValuatorProEngine(){
             <div><span className="hl">Güven skoru</span><b className={audit.score>=7?'ok':audit.score>=4?'wn':'er'}>{audit.score.toFixed(1).replace('.',',')}</b></div>
             <div className="hide-sm"><span className="hl">WACC</span><b>{pc(V.P.w)}</b></div>
           </div>}
+          {layer!=='L0' && layer!=='A0' && st.valuationTaskId && (
+            <button type="button" className="gearBtn" style={{ marginLeft: V ? 10 : 'auto', marginRight: 10, width: 30, height: 30 }} title="Firma profili" aria-label="Firma profili" onClick={openProfile}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+          )}
         </header>
         {/* Sol rail ile yinelendiği için kaldırıldı — silinmedi, gerekirse geri açılabilir.
         <div className="stepper" role="tablist">
@@ -302,6 +335,7 @@ export default function ValuatorProEngine(){
         </div>
         */}
         <main className="work">
+          {layer==='A0' && <Onboarding onDone={() => setLayer('L0')} />}
           {layer==='L0' && <I.L0Tasks {...ctx} />}
           {layer==='L1' && <I.L1Inputs {...ctx} />}
           {layer==='L2' && <I.L2Mapping {...ctx} />}
@@ -335,7 +369,87 @@ export default function ValuatorProEngine(){
       </div>,
       document.body
     )}
+    {profileOpen && createPortal(
+      <CompanyProfileDialog valuationTaskId={st.valuationTaskId} initial={st.companyProfile} onClose={()=>setProfileOpen(false)} onSaved={p=>up({ companyProfile:p, company:p.companyName })} />,
+      document.body
+    )}
     </RightColContext.Provider>
+  );
+}
+
+function CompanyProfileDialog({ valuationTaskId, initial, onClose, onSaved }){
+  const [updateCompanyProfile, { isLoading: saving }] = useUpdateCompanyProfileMutation();
+  const [companyName, setCompanyName] = useState(initial?.name || '');
+  const [website, setWebsite] = useState(initial?.website || '');
+  const [sector, setSector] = useState(initial?.sector || '');
+  const [subSector, setSubSector] = useState(initial?.subSector || '');
+  const [employees, setEmployees] = useState(initial?.employees || '');
+  const [revenue, setRevenue] = useState(initial?.revenue || '');
+  const [purpose, setPurpose] = useState(initial?.purpose || '');
+  const [reportEmail, setReportEmail] = useState(initial?.reportEmail || '');
+  const [contactFullName, setContactFullName] = useState(initial?.contactFullName || '');
+  const [contactRole, setContactRole] = useState(initial?.contactRole || '');
+  const [contactPhone, setContactPhone] = useState(initial?.contactPhone || '');
+  const [err, setErr] = useState('');
+  const sectorObj = SECTORS.find(s => s.k === sector);
+  const f = findSub(sector, subSector);
+  const save = async () => {
+    if (!companyName.trim()) { setErr('Firma unvanı zorunlu.'); return; }
+    setErr('');
+    try {
+      const r = await updateCompanyProfile({ valuationTaskId, companyName, website, sector, subSector, employees, revenue, purpose, reportEmail, contactFullName, contactRole, contactPhone }).unwrap();
+      onSaved({ name:r.companyName, website:r.website, sector:r.sector, subSector:r.subSector, employees:r.employees, revenue:r.revenue, purpose:r.purpose, reportEmail:r.reportEmail, contactFullName:r.contactFullName, contactRole:r.contactRole, contactPhone:r.contactPhone, companyName:r.companyName });
+      onClose();
+    } catch(e){ setErr(e?.data || e?.message || 'Kaydedilemedi.'); }
+  };
+  return (
+    <div className="vp-root">
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="cpdlg" onMouseDown={e=>{ if (e.target===e.currentTarget) onClose(); }}>
+      <div className="mbox" style={{ maxWidth: 760 }}>
+        <h2 id="cpdlg">Firma profili</h2>
+        <p className="sub">Bu değerlemenin firma ve sektör bilgilerini düzenleyin.</p>
+        <div className="row2">
+          <label className="fld"><span>Firma unvanı</span>
+            <input value={companyName} onChange={e=>setCompanyName(e.target.value)} /></label>
+          <label className="fld"><span>Firma web sitesi</span>
+            <input value={website} onChange={e=>setWebsite(e.target.value)} placeholder="firmaniz.com.tr" /></label>
+        </div>
+        <div className="row2">
+          <label className="fld"><span>Sektör</span>
+            <select value={sector} onChange={e=>{ setSector(e.target.value); setSubSector(''); }}>
+              <option value="">Seçin…</option>{SECTORS.map(s=><option key={s.k} value={s.k}>{s.n}</option>)}
+            </select></label>
+          <label className="fld"><span>Alt sektör</span>
+            <select value={subSector} onChange={e=>setSubSector(e.target.value)} disabled={!sectorObj}>
+              <option value="">Seçin…</option>{sectorObj?.subs.map(s=><option key={s.k} value={s.k}>{s.n}</option>)}
+            </select></label>
+        </div>
+        <div className="row3" style={{ gridTemplateColumns: '0.8fr 0.8fr 1.4fr' }}>
+          <label className="fld"><span>Çalışan sayısı</span>
+            <select value={employees} onChange={e=>setEmployees(e.target.value)}><option value="">Seçin…</option>{EMPLOYEES.map(x=><option key={x}>{x}</option>)}</select></label>
+          <label className="fld"><span>Yıllık ciro</span>
+            <select value={revenue} onChange={e=>setRevenue(e.target.value)}><option value="">Seçin…</option>{REVENUE.map(x=><option key={x}>{x}</option>)}</select></label>
+          <label className="fld"><span>Değerleme amacı</span>
+            <select value={purpose} onChange={e=>setPurpose(e.target.value)}><option value="">Seçin…</option>{PURPOSES.map(x=><option key={x}>{x}</option>)}</select></label>
+        </div>
+        <div className="row2">
+          <label className="fld"><span>İletişim kişisi (ad soyad)</span>
+            <input value={contactFullName} onChange={e=>setContactFullName(e.target.value)} /></label>
+          <label className="fld"><span>Görev</span>
+            <select value={contactRole} onChange={e=>setContactRole(e.target.value)}><option value="">Seçin…</option>{ROLES.map(x=><option key={x}>{x}</option>)}</select></label>
+        </div>
+        <div className="row2">
+          <label className="fld"><span>Rapor gönderilecek e-posta</span>
+            <input type="email" value={reportEmail} onChange={e=>setReportEmail(e.target.value)} /></label>
+          <label className="fld"><span>Telefon</span>
+            <input type="tel" value={contactPhone} onChange={e=>setContactPhone(e.target.value)} /></label>
+        </div>
+        {f && <div className="shint">{`Bu alt sektör için başlangıç varsayımları: kaldıraçsız beta ${f.sub.betaU.toFixed(2).replace('.',',')}, EV / FAVÖK ${(f.sub.mult[1]*0.7).toFixed(2).replace('.',',')}x (Türkiye iskontolu medyan).`}</div>}
+        {err && <div className="ferr box" role="alert">{err}</div>}
+        <div className="actions"><button className="btn big" onClick={save} disabled={saving}>{saving?'Kaydediliyor…':'Kaydet'}</button><button className="lnk" onClick={onClose}>Vazgeç</button></div>
+      </div>
+    </div>
+    </div>
   );
 }
 

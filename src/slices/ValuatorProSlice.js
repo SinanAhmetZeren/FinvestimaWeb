@@ -117,6 +117,14 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       query: (valuationTaskId) => `/api/ValuatorPro/valuation-tasks/${valuationTaskId}`,
     }),
 
+    updateCompanyProfile: builder.mutation({
+      query: ({ valuationTaskId, companyName, website, sector, subSector, employees, revenue, purpose, reportEmail, contactFullName, contactRole, contactPhone }) => ({
+        url: `/api/ValuatorPro/valuation-tasks/${valuationTaskId}/company-profile`,
+        method: "PUT",
+        body: { companyName, website, sector, subSector, employees, revenue, purpose, reportEmail, contactFullName, contactRole, contactPhone },
+      }),
+    }),
+
     // Katkı seviyeleri (Statements.jsx) sınıflandırmasını kaydeder — hem otomatik (classify()
     // çıktısı) hem elle değiştirilen satırlar buraya gelir, bkz. SaveContributionClassifications.
     saveContributionClassifications: builder.mutation({
@@ -167,6 +175,25 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       query: () => "/api/ValuatorPro/admin/valuation-tasks",
       providesTags: ["VPTask"],
     }),
+    adminAddAllowedEmail: builder.mutation({
+      query: ({ email, note, taskCredits }) => ({
+        url: "/api/ValuatorPro/admin/allowed-emails",
+        method: "POST",
+        body: { email, note, taskCredits },
+      }),
+      invalidatesTags: ["VPAllowedEmail"],
+    }),
+    adminListAllowedEmails: builder.query({
+      query: () => "/api/ValuatorPro/admin/allowed-emails",
+      providesTags: ["VPAllowedEmail"],
+    }),
+    adminDeleteAllowedEmail: builder.mutation({
+      query: (id) => ({
+        url: `/api/ValuatorPro/admin/allowed-emails/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["VPAllowedEmail"],
+    }),
   }),
   overrideExisting: true,
 });
@@ -190,6 +217,7 @@ export const {
   useSaveAssumptionsMutation,
   useComputeAssumptionsMutation,
   useLazyGetValuationTaskQuery,
+  useUpdateCompanyProfileMutation,
   useSaveContributionClassificationsMutation,
   useRemoveYearMutation,
   useLazyGetMyValuationTasksQuery,
@@ -198,4 +226,7 @@ export const {
   useAdminListUsersQuery,
   useAdminCreateTaskMutation,
   useAdminListTasksQuery,
+  useAdminAddAllowedEmailMutation,
+  useAdminListAllowedEmailsQuery,
+  useAdminDeleteAllowedEmailMutation,
 } = valuatorProApiSlice;

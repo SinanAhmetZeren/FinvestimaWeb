@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -25,7 +26,7 @@ const C = {
 
 function EyeBtn({ show, onToggle }) {
   return (
-    <button type="button" onClick={onToggle} style={s.eye} aria-label={show ? "Hide password" : "Show password"}>
+    <button type="button" onClick={onToggle} style={s.eye} aria-label={show ? "Şifreyi gizle" : "Şifreyi göster"}>
       {show ? (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
           <path d="M4 4l16 16" />
@@ -72,6 +73,7 @@ export default function AuthPage() {
   // page states: Login | ForgotPassword | Register1 | Register2 | ResetPassword
   const [page, setPage] = useState("Login");
   const [busy, setBusy] = useState(false);
+  const [noAccessModal, setNoAccessModal] = useState(false);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -110,36 +112,39 @@ export default function AuthPage() {
       token: r.token,
       refreshToken: r.refreshToken,
       userName: r.userName,
+      email: r.email,
       isAdmin: r.isAdmin,
     }));
     navigate("/");
   };
 
   const handleLogin = async () => {
-    if (!username || !password) { toast.error("Please enter both email and password."); return; }
+    if (!username || !password) { toast.error("Lütfen e-posta ve şifrenizi girin."); return; }
     try {
       setBusy(true);
       const r = await loginUser({ email: username, password }).unwrap();
-      if (!r?.token) { toast.error("Login failed: Invalid credentials."); return; }
+      if (!r?.token) { toast.error("Giriş başarısız: Geçersiz bilgiler."); return; }
       applyLogin(r);
       setUsername(""); setPassword("");
     } catch (err) {
-      toast.error(err.status === 401 ? "Incorrect email or password." : "Login failed. Please try again.");
+      toast.error(err.status === 401 ? "E-posta ya da şifre hatalı." : "Giriş başarısız. Lütfen tekrar deneyin.");
     } finally { setBusy(false); }
   };
 
   const handleRegister = async () => {
-    if (!usernameReg || !emailReg || !passwordReg || !passwordReg2) { toast.error("All fields are required."); return; }
-    if (passwordReg !== passwordReg2) { toast.error("Passwords do not match."); return; }
+    if (!usernameReg || !emailReg || !passwordReg || !passwordReg2) { toast.error("Tüm alanlar zorunludur."); return; }
+    if (passwordReg !== passwordReg2) { toast.error("Şifreler eşleşmiyor."); return; }
     const pwOk = passwordReg.length >= 8 && /[A-Z]/.test(passwordReg) && /[a-z]/.test(passwordReg) && /[0-9]/.test(passwordReg);
-    if (!pwOk) { toast.error("Password must be 8+ chars with uppercase, lowercase, and a number."); return; }
+    if (!pwOk) { toast.error("Şifre en az 8 karakter olmalı, büyük/küçük harf ve rakam içermeli."); return; }
     try {
       setBusy(true);
       const r = await registerUser({ email: emailReg, userName: usernameReg, password: passwordReg }).unwrap();
       if (r?.token) { setUsernameReg(""); setPasswordReg(""); setPasswordReg2(""); setPage("Register2"); }
-      else toast.error("Registration failed: No token received.");
+      else toast.error("Kayıt başarısız: Token alınamadı.");
     } catch (err) {
-      toast.error(err?.data?.title || err?.data?.message || "Registration failed. Please check your details.");
+      const d = err?.data;
+      if (d?.code === "no_access") { setNoAccessModal(true); setBusy(false); return; }
+      toast.error((typeof d === "string" ? d : d?.error || d?.title || d?.message) || "Kayıt başarısız. Lütfen bilgilerinizi kontrol edin.");
     } finally { setBusy(false); }
   };
 
@@ -150,7 +155,7 @@ export default function AuthPage() {
       const r = await confirmUser({ email: emailReg, code: confirmCode }).unwrap();
       setConfirmCode(""); setEmailReg("");
       if (r.token) applyLogin(r);
-    } catch { toast.error("Invalid confirmation code. Please try again."); }
+    } catch { toast.error("Doğrulama kodu geçersiz. Lütfen tekrar deneyin."); }
     finally { setBusy(false); }
   };
 
@@ -163,37 +168,37 @@ export default function AuthPage() {
       resetForms();
       setEmailForgot(email);
       setPage("ResetPassword");
-    } catch { toast.error("Failed to send reset code. Please check your email."); }
+    } catch { toast.error("Kod gönderilemedi. Lütfen e-postanızı kontrol edin."); }
     finally { setBusy(false); }
   };
 
   const handleResetPassword = async () => {
     if (!sixCode || !pwUpdate1 || !pwUpdate2) return;
-    if (pwUpdate1 !== pwUpdate2) { toast.error("Passwords do not match."); return; }
+    if (pwUpdate1 !== pwUpdate2) { toast.error("Şifreler eşleşmiyor."); return; }
     try {
       setBusy(true);
       const r = await resetPassword({ email: emailForgot, password: pwUpdate1, confirmationCode: sixCode }).unwrap();
       setPwUpdate1(""); setPwUpdate2(""); setSixCode("");
       if (r.token) applyLogin(r);
-    } catch { toast.error("Error resetting password. Please check your code."); }
+    } catch { toast.error("Şifre sıfırlanamadı. Lütfen kodunuzu kontrol edin."); }
     finally { setBusy(false); }
   };
 
   const usernameRules = [
-    { label: "At least 3 characters", ok: usernameReg.length >= 3 },
-    { label: "Max 25 characters", ok: usernameReg.length <= 25 },
-    { label: "Letters, numbers, underscores only", ok: usernameReg.length === 0 || /^[a-zA-Z0-9_]+$/.test(usernameReg) },
+    { label: "En az 3 karakter", ok: usernameReg.trim().length >= 3 },
+    { label: "En fazla 50 karakter", ok: usernameReg.length <= 50 },
+    { label: "Sadece harf, rakam, boşluk, tire", ok: usernameReg.length === 0 || /^[\p{L}0-9 '-]+$/u.test(usernameReg) },
   ];
-  const emailRules = [{ label: "Valid email format", ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailReg) }];
+  const emailRules = [{ label: "Geçerli e-posta formatı", ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailReg) }];
   const passwordRules = [
-    { label: "At least 8 characters", ok: passwordReg.length >= 8 },
-    { label: "One uppercase letter", ok: /[A-Z]/.test(passwordReg) },
-    { label: "One lowercase letter", ok: /[a-z]/.test(passwordReg) },
-    { label: "One number", ok: /[0-9]/.test(passwordReg) },
-    { label: "Passwords match", ok: passwordReg.length > 0 && passwordReg === passwordReg2 },
+    { label: "En az 8 karakter", ok: passwordReg.length >= 8 },
+    { label: "Bir büyük harf", ok: /[A-Z]/.test(passwordReg) },
+    { label: "Bir küçük harf", ok: /[a-z]/.test(passwordReg) },
+    { label: "Bir rakam", ok: /[0-9]/.test(passwordReg) },
+    { label: "Şifreler eşleşiyor", ok: passwordReg.length > 0 && passwordReg === passwordReg2 },
   ];
 
-  const registerReady = usernameReg.length >= 3 && /^[a-zA-Z0-9_]+$/.test(usernameReg)
+  const registerReady = usernameReg.trim().length >= 3 && /^[\p{L}0-9 '-]+$/u.test(usernameReg)
     && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailReg)
     && passwordReg.length >= 8 && /[A-Z]/.test(passwordReg) && /[a-z]/.test(passwordReg) && /[0-9]/.test(passwordReg)
     && passwordReg === passwordReg2;
@@ -209,21 +214,21 @@ export default function AuthPage() {
               <>
                 <div style={s.fields}>
                   <div style={s.fld}>
-                    <input style={s.input} type="email" placeholder="Email" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} autoComplete="email" />
+                    <input style={s.input} type="email" placeholder="E-posta" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} autoComplete="email" />
                   </div>
                   <div style={s.fld}>
-                    <input style={s.input} type={showPw ? "text" : "password"} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} autoComplete="current-password" />
+                    <input style={s.input} type={showPw ? "text" : "password"} placeholder="Şifre" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} autoComplete="current-password" />
                     <EyeBtn show={showPw} onToggle={() => setShowPw(v => !v)} />
                   </div>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button style={s.lnk} onClick={() => go("ForgotPassword")}>Forgot password?</button>
+                    <button style={s.lnk} onClick={() => go("ForgotPassword")}>Şifremi unuttum</button>
                   </div>
                   <button style={{ ...s.btn, opacity: username && password ? 1 : 0.55 }} onClick={handleLogin} disabled={busy || !username || !password}>
-                    {busy ? <Spinner /> : "Login"}
+                    {busy ? <Spinner /> : "Giriş yap"}
                   </button>
-                  <div style={{ ...s.rowMid, display: "none" }}>
-                    Don't have an account?
-                    <button style={s.lnk} onClick={() => {/* go("Register1") */}}>Sign up</button>
+                  <div style={s.rowMid}>
+                    Hesabınız yok mu?
+                    <button style={s.lnk} onClick={() => go("Register1")}>Üye olun</button>
                   </div>
                 </div>
               </>
@@ -231,16 +236,15 @@ export default function AuthPage() {
 
             {page === "ForgotPassword" && (
               <>
-                <h1 style={s.h1}>Reset your password</h1>
                 <div style={s.fields}>
                   <div style={s.fld}>
-                    <input style={s.input} type="email" placeholder="Enter email" value={emailForgot} onChange={e => setEmailForgot(e.target.value)} autoComplete="email" />
+                    <input style={s.input} type="email" placeholder="E-posta girin" value={emailForgot} onChange={e => setEmailForgot(e.target.value)} autoComplete="email" />
                   </div>
                   <button style={{ ...s.btn, opacity: emailForgot ? 1 : 0.55 }} onClick={handleSendCode} disabled={busy || !emailForgot}>
-                    {busy ? <Spinner /> : "Send Code"}
+                    {busy ? <Spinner /> : "Kod gönder"}
                   </button>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button style={s.lnk} onClick={() => go("Login")}>Back to Login</button>
+                    <button style={s.lnk} onClick={() => go("Login")}>Girişe dön</button>
                   </div>
                 </div>
               </>
@@ -248,30 +252,29 @@ export default function AuthPage() {
 
             {page === "Register1" && (
               <>
-                <h1 style={s.h1}>Let's get started</h1>
                 <div style={{ ...s.fields, position: "relative" }}>
                   {focusedField === "username" && <HintPill rules={usernameRules} />}
                   {focusedField === "email" && <HintPill rules={emailRules} />}
                   {(focusedField === "password" || focusedField === "password2") && <HintPill rules={passwordRules} />}
                   <div style={s.fld}>
-                    <input style={s.input} type="text" placeholder="Username (3-25 characters)" value={usernameReg} maxLength={25} onChange={e => setUsernameReg(e.target.value)} onFocus={() => setFocusedField("username")} onBlur={() => setFocusedField(null)} autoComplete="username" />
+                    <input style={s.input} type="text" placeholder="Ad Soyad" value={usernameReg} maxLength={50} onChange={e => setUsernameReg(e.target.value)} onFocus={() => setFocusedField("username")} onBlur={() => setFocusedField(null)} autoComplete="name" />
                   </div>
                   <div style={s.fld}>
-                    <input style={s.input} type="email" placeholder="Email" value={emailReg} onChange={e => setEmailReg(e.target.value)} onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)} autoComplete="email" />
+                    <input style={s.input} type="email" placeholder="E-posta" value={emailReg} onChange={e => setEmailReg(e.target.value)} onFocus={() => setFocusedField("email")} onBlur={() => setFocusedField(null)} autoComplete="email" />
                   </div>
                   <div style={s.fld}>
-                    <input style={s.input} type={showPwReg ? "text" : "password"} placeholder="Password" value={passwordReg} onChange={e => setPasswordReg(e.target.value)} onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)} autoComplete="new-password" />
+                    <input style={s.input} type={showPwReg ? "text" : "password"} placeholder="Şifre" value={passwordReg} onChange={e => setPasswordReg(e.target.value)} onFocus={() => setFocusedField("password")} onBlur={() => setFocusedField(null)} autoComplete="new-password" />
                     <EyeBtn show={showPwReg} onToggle={() => setShowPwReg(v => !v)} />
                   </div>
                   <div style={s.fld}>
-                    <input style={s.input} type={showPwReg2 ? "text" : "password"} placeholder="Re-enter Password" value={passwordReg2} onChange={e => setPasswordReg2(e.target.value)} onFocus={() => setFocusedField("password2")} onBlur={() => setFocusedField(null)} autoComplete="new-password" />
+                    <input style={s.input} type={showPwReg2 ? "text" : "password"} placeholder="Şifre tekrar" value={passwordReg2} onChange={e => setPasswordReg2(e.target.value)} onFocus={() => setFocusedField("password2")} onBlur={() => setFocusedField(null)} autoComplete="new-password" />
                     <EyeBtn show={showPwReg2} onToggle={() => setShowPwReg2(v => !v)} />
                   </div>
                   <button style={{ ...s.btn, opacity: registerReady ? 1 : 0.55 }} onClick={handleRegister} disabled={busy || !registerReady}>
-                    {busy ? <Spinner /> : "Register"}
+                    {busy ? <Spinner /> : "Üye ol"}
                   </button>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button style={s.lnk} onClick={() => go("Login")}>Back to Login</button>
+                    <button style={s.lnk} onClick={() => go("Login")}>Girişe dön</button>
                   </div>
                 </div>
               </>
@@ -279,16 +282,15 @@ export default function AuthPage() {
 
             {page === "Register2" && (
               <>
-                <h1 style={s.h1}>Almost there</h1>
                 <div style={s.fields}>
                   <div style={s.fld}>
-                    <input style={{ ...s.input, letterSpacing: "0.3em" }} type="text" placeholder="Confirmation Code" value={confirmCode} onChange={e => setConfirmCode(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="one-time-code" />
+                    <input style={{ ...s.input, letterSpacing: "0.3em" }} type="text" placeholder="Doğrulama kodu" value={confirmCode} onChange={e => setConfirmCode(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="one-time-code" />
                   </div>
                   <button style={{ ...s.btn, opacity: confirmCode ? 1 : 0.55 }} onClick={handleConfirm} disabled={busy || !confirmCode}>
-                    {busy ? <Spinner /> : "Confirm"}
+                    {busy ? <Spinner /> : "Onayla"}
                   </button>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button style={s.lnk} onClick={() => go("Login")}>Back to Login</button>
+                    <button style={s.lnk} onClick={() => go("Login")}>Girişe dön</button>
                   </div>
                 </div>
               </>
@@ -296,24 +298,23 @@ export default function AuthPage() {
 
             {page === "ResetPassword" && (
               <>
-                <h1 style={s.h1}>Check your email</h1>
                 <div style={s.fields}>
                   <div style={s.fld}>
-                    <input style={{ ...s.input, letterSpacing: "0.3em" }} type="text" placeholder="Enter 6 digit code" value={sixCode} onChange={e => setSixCode(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="one-time-code" />
+                    <input style={{ ...s.input, letterSpacing: "0.3em" }} type="text" placeholder="6 haneli kodu girin" value={sixCode} onChange={e => setSixCode(e.target.value)} inputMode="numeric" maxLength={6} autoComplete="one-time-code" />
                   </div>
                   <div style={s.fld}>
-                    <input style={s.input} type={showPwU1 ? "text" : "password"} placeholder="New Password" value={pwUpdate1} onChange={e => setPwUpdate1(e.target.value)} autoComplete="new-password" />
+                    <input style={s.input} type={showPwU1 ? "text" : "password"} placeholder="Yeni şifre" value={pwUpdate1} onChange={e => setPwUpdate1(e.target.value)} autoComplete="new-password" />
                     <EyeBtn show={showPwU1} onToggle={() => setShowPwU1(v => !v)} />
                   </div>
                   <div style={s.fld}>
-                    <input style={s.input} type={showPwU2 ? "text" : "password"} placeholder="Re-enter Password" value={pwUpdate2} onChange={e => setPwUpdate2(e.target.value)} autoComplete="new-password" />
+                    <input style={s.input} type={showPwU2 ? "text" : "password"} placeholder="Yeni şifre tekrar" value={pwUpdate2} onChange={e => setPwUpdate2(e.target.value)} autoComplete="new-password" />
                     <EyeBtn show={showPwU2} onToggle={() => setShowPwU2(v => !v)} />
                   </div>
                   <button style={{ ...s.btn, opacity: sixCode && pwUpdate1 && pwUpdate2 ? 1 : 0.55 }} onClick={handleResetPassword} disabled={busy || !sixCode || !pwUpdate1 || !pwUpdate2}>
-                    {busy ? <Spinner /> : "Update Password"}
+                    {busy ? <Spinner /> : "Şifreyi güncelle"}
                   </button>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button style={s.lnk} onClick={() => go("Login")}>Back to Login</button>
+                    <button style={s.lnk} onClick={() => go("Login")}>Girişe dön</button>
                   </div>
                 </div>
               </>
@@ -322,6 +323,19 @@ export default function AuthPage() {
           </div>
         </div>
       </div>
+
+      {noAccessModal && createPortal(
+        <div style={s.modalOverlay} onClick={() => setNoAccessModal(false)}>
+          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
+            <h2 style={{ ...s.h1, textAlign: "left", fontSize: 18 }}>Erişiminiz henüz tanımlanmamış</h2>
+            <p style={{ color: C.mid, fontSize: 14, lineHeight: 1.55, margin: "10px 0 20px" }}>
+              Bu e-posta adresiyle kayıt olabilmeniz için önce sistem yöneticinizin size erişim tanımlaması gerekiyor. Lütfen yöneticinizle iletişime geçin.
+            </p>
+            <button style={s.btn} onClick={() => setNoAccessModal(false)}>Anladım</button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -362,14 +376,20 @@ const s = {
     margin: "0 auto 22px",
   },
   h1: {
-    fontSize: 26, fontWeight: 900, letterSpacing: "-.02em",
+    fontSize: 19, fontWeight: 800, letterSpacing: "-.01em",
     color: C.blue, textAlign: "center", lineHeight: 1.1, margin: "0 0 4px",
+  },
+  sub: {
+    fontSize: 13.5, fontWeight: 600, color: C.mid, textAlign: "center", margin: "0 0 8px",
   },
   fields: {
     display: "flex", flexDirection: "column", gap: 11, marginTop: 8,
   },
   fld: {
     position: "relative", display: "flex",
+  },
+  chk: {
+    display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, fontWeight: 600, color: C.mid, cursor: "pointer",
   },
   input: {
     fontFamily: "inherit",
@@ -410,5 +430,13 @@ const s = {
     zIndex: 10, whiteSpace: "nowrap",
     display: "flex", flexDirection: "column", gap: "0.3rem",
     boxShadow: "0 8px 24px rgba(0,0,0,.25)",
+  },
+  modalOverlay: {
+    position: "fixed", inset: 0, background: "rgba(10,20,40,.5)",
+    display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20,
+  },
+  modalBox: {
+    background: "#fff", borderRadius: 16, padding: "26px 28px", maxWidth: 400, width: "100%",
+    boxShadow: "0 20px 50px rgba(0,0,0,.3)",
   },
 };

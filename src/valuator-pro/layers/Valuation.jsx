@@ -22,13 +22,19 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
   const [resetConfirm, setResetConfirm] = useState(false);
   if (!hist.length || !st.asm || !V) return noVal;
   const A = st.asm, P = V.P, B = V.B;
-  const setA = p => up(s => {
+  // setA'nın 2. parametresi (touchKeys): hangi alan(lar)a GERÇEKTEN elle dokunulduğunu
+  // açıkça işaretler — sayı karşılaştırmasıyla "tahmin" etmiyoruz, asm._touched içinde
+  // kalıcı olarak (kaydedilip/yüklenerek) tutuyoruz.
+  const setA = (p, touchKeys) => up(s => {
     const next = { ...s.asm, ...p };
+    const touched = new Set(s.asm._touched || []);
+    (touchKeys || []).forEach(k => touched.add(k));
     const { scenario:_s1, _base:_b1, ...nextVals } = next;
     const { scenario:_s2, _base:_b2, ...baseVals } = s.baseAsm || {};
     const isBase = JSON.stringify(nextVals) === JSON.stringify(baseVals);
-    return { asm: { ...next, scenario: p.scenario ?? (isBase ? (s.baseAsm?.scenario || 'base') : 'custom') } };
+    return { asm: { ...next, _touched:[...touched], scenario: p.scenario ?? (isBase ? (s.baseAsm?.scenario || 'base') : 'custom') } };
   });
+  const mk = (key, label) => A._touched?.includes(key) ? <b style={{ color:'#7A1230' }}>{label}*</b> : label;
   const H3 = hist.slice(-3);
   const hu = h => { const u=h.usd, m=cogsMix(h), ce=Math.max(0,u.cogs-u.daCogs); return { rev:u.rev, mat:ce*m.mat, lab:ce*m.lab, ovh:ce*m.ovh, psd:Math.max(0,u.psd-u.daPsd), ga:Math.max(0,u.ga-u.daGa-u.addb), rnd:Math.max(0,u.rnd-u.daRnd), ebitda:u.ebitdaAdj, da:u.da, ebit:u.ebitdaAdj-u.da, nwc:u.nwc }; };
   const HU = H3.map(hu);
@@ -99,23 +105,23 @@ export function L5Assumptions({ hist, st, up, V, rr, print }){
       <div className="iblk"><h4>Gelir büyümesi (USD)</h4>
         {rr && <Toggle checked={A.y1Mode==='runrate'} onChange={v=>setA({y1Mode: v?'runrate':'growth'})} title={`${B.year+1} cirosunu aylık rapordan türet`}
           desc={`${rr.months} aylık gerçekleşme × ${nf(A.runRateFactor||rr.factor,2)} yıllıklandırma × ${nf(rr.recon,3)} mizan mutabakatı = ${nf(rr.usd*(A.runRateFactor||rr.factor)*rr.recon)} bin USD`} />}
-        {A.y1Mode==='runrate' && rr && <NumField label="Yıllıklandırma katsayısı" value={A.runRateFactor||rr.factor} step={0.05} digits={2} unit="x" min={1} max={12} onChange={v=>setA({runRateFactor:v})} />}
+        {A.y1Mode==='runrate' && rr && <NumField label={mk('runRateFactor', 'Yıllıklandırma katsayısı')} value={A.runRateFactor||rr.factor} step={0.05} digits={2} unit="x" min={1} max={12} onChange={v=>setA({runRateFactor:v}, ['runRateFactor'])} />}
         {Array.from({length:A.N},(_,i)=> (i===0 && A.y1Mode==='runrate') ? null : (
-          <NumField key={i} label={`${B.year+i+1}`} value={A.growth[i]} pct step={0.01} min={-0.5} max={1} onChange={v=>{ const g=[...A.growth]; g[i]=v; setA({growth:g}); }} />))}
+          <NumField key={i} label={mk(`growth.${i}`, String(B.year+i+1))} value={A.growth[i]} pct step={0.01} min={-0.5} max={1} onChange={v=>{ const g=[...A.growth]; g[i]=v; setA({growth:g}, [`growth.${i}`]); }} />))}
         <button className="lnk" onClick={()=>setA({ growth: A.growth.map(()=>A.growth[A.y1Mode==='runrate'?1:0]) })}>İlk değeri tüm yıllara uygula</button>
       </div>
       <div className="iblk"><h4>Maliyet / ciro hedefi ({B.year+A.N})</h4>
         {COSTS.filter(([k])=>k!=='rnd'||A.costs.rnd.s>0).map(([k,n]) => (
-          <NumField key={k} label={<>{n}<span className="from"> baz {pc(A.costs[k].s)}</span></>} value={A.costs[k].e} pct step={0.005} min={0} max={1}
-            onChange={v=>setA({ costs: { ...A.costs, [k]: { ...A.costs[k], e:v } } })} />))}
+          <NumField key={k} label={mk(`costs.${k}`, <>{n}<span className="from"> baz {pc(A.costs[k].s)}</span></>)} value={A.costs[k].e} pct step={0.005} min={0} max={1}
+            onChange={v=>setA({ costs: { ...A.costs, [k]: { ...A.costs[k], e:v } } }, [`costs.${k}`])} />))}
         <div className="ical"><span className="k">{B.year+A.N} FAVÖK marjı</span><span className="v">{pc(P.rows[P.rows.length-1].margin)}</span></div>
       </div>
       <div className="iblk iblk-left"><h4>Yatırım, sermaye, vergi</h4>
-        <NumField label="Yatırım / ciro" value={A.capexPct} pct step={0.005} min={0} max={0.5} onChange={v=>setA({capexPct:v})} />
-        <NumField label="NİS / ciro" value={A.nwcPct} pct step={0.01} min={-0.5} max={1} onChange={v=>setA({nwcPct:v})} />
-        <NumField label="Yeni yatırım ömrü" value={A.daLife} step={1} digits={0} unit="yıl" min={2} max={50} onChange={v=>setA({daLife:v})} />
-        <NumField label="Mevcut amortisman azalışı" value={A.daFade} pct step={0.05} min={0} max={1} hint="Mevcut varlıkların amortismanının yıllık azalma hızı" onChange={v=>setA({daFade:v})} />
-        <NumField label="Kurumlar vergisi" value={A.taxRate} pct step={0.01} min={0} max={0.5} onChange={v=>setA({taxRate:v})} />
+        <NumField label={mk('capexPct', 'Yatırım / ciro')} value={A.capexPct} pct step={0.005} min={0} max={0.5} onChange={v=>setA({capexPct:v}, ['capexPct'])} />
+        <NumField label={mk('nwcPct', 'NİS / ciro')} value={A.nwcPct} pct step={0.01} min={-0.5} max={1} onChange={v=>setA({nwcPct:v}, ['nwcPct'])} />
+        <NumField label={mk('daLife', 'Yeni yatırım ömrü')} value={A.daLife} step={1} digits={0} unit="yıl" min={2} max={50} onChange={v=>setA({daLife:v}, ['daLife'])} />
+        <NumField label={mk('daFade', 'Mevcut amortisman azalışı')} value={A.daFade} pct step={0.05} min={0} max={1} hint="Mevcut varlıkların amortismanının yıllık azalma hızı" onChange={v=>setA({daFade:v}, ['daFade'])} />
+        <NumField label={mk('taxRate', 'Kurumlar vergisi')} value={A.taxRate} pct step={0.01} min={0} max={0.5} onChange={v=>setA({taxRate:v}, ['taxRate'])} />
       </div>
       <div className="iblk">
         <button className="ibtn" disabled={savingAsm || !st.valuationTaskId || stableStringify(A)===stableStringify(st.savedAsm)}

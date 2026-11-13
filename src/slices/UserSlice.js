@@ -9,6 +9,7 @@ const usersSlice = createSlice({
     token: localStorage.getItem("storedToken"),
     refreshToken: localStorage.getItem("storedRefreshToken"),
     userName: localStorage.getItem("storedUserName"),
+    email: localStorage.getItem("storedEmail"),
     isAdmin: localStorage.getItem("storedIsAdmin") === "true",
   },
   reducers: {
@@ -18,12 +19,14 @@ const usersSlice = createSlice({
       state.token = action.payload.token;
       state.refreshToken = action.payload.refreshToken;
       state.userName = action.payload.userName;
+      state.email = action.payload.email ?? "";
       state.isAdmin = action.payload.isAdmin ?? false;
 
       localStorage.setItem("storedToken", action.payload.token);
       localStorage.setItem("storedRefreshToken", action.payload.refreshToken);
       localStorage.setItem("storedUserId", action.payload.userId);
       localStorage.setItem("storedUserName", action.payload.userName);
+      localStorage.setItem("storedEmail", action.payload.email ?? "");
       localStorage.setItem("storedIsAdmin", String(action.payload.isAdmin ?? false));
     },
     updateAsLoggedOut: (state) => {
@@ -32,12 +35,14 @@ const usersSlice = createSlice({
       state.token = "";
       state.refreshToken = "";
       state.userName = "";
+      state.email = "";
       state.isAdmin = false;
 
       localStorage.removeItem("storedToken");
       localStorage.removeItem("storedRefreshToken");
       localStorage.removeItem("storedUserId");
       localStorage.removeItem("storedUserName");
+      localStorage.removeItem("storedEmail");
       localStorage.removeItem("storedIsAdmin");
     },
   },

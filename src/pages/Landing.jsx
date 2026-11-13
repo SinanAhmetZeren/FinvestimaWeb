@@ -124,6 +124,33 @@ function FlowArrow() {
   );
 }
 
+// "Yedi katmanlı motor" bölümünün altında, animasyonlu/tıklanabilir sürüm — kendi başına
+// derlenen bağımsız bir statik sayfa (public/embed/nasil-calisir.html), iframe ile gömülü.
+// Yüksekliğini postMessage ile kendisi bildirir (bkz. o dosyadaki fv-nasil-height mesajı).
+function NasilCalisirEmbed() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const onMsg = (e) => {
+      if (e.data && e.data.type === "fv-nasil-height" && ref.current) {
+        ref.current.style.height = e.data.h + "px";
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+  return (
+    <section className="wrap" style={{ padding: "0 0 40px" }}>
+      <iframe
+        ref={ref}
+        src="/embed/nasil-calisir.html"
+        title="Valuator nasıl çalışır"
+        style={{ width: "100%", border: 0, height: 760 }}
+        loading="lazy"
+      />
+    </section>
+  );
+}
+
 export default function Landing() {
   const [sel, setSel] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -338,6 +365,8 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <NasilCalisirEmbed />
 
       {/* ══ ÜÇ MERCEK ══ */}
       <section className="tint" id="mercek">
