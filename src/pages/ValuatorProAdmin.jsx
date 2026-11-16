@@ -1,17 +1,18 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Panel } from "../valuator-pro/ui.jsx";
-import { useAdminListUsersQuery, useAdminListTasksQuery, useAdminAddAllowedEmailMutation, useAdminListAllowedEmailsQuery } from "../slices/ValuatorProSlice";
+import { useAdminListUsersQuery, useAdminListTasksQuery, useAdminAddCreditEntryMutation, useAdminListCreditLedgerQuery, useAdminApproveUserMutation } from "../slices/ValuatorProSlice";
 import "../valuator-pro/styles.css";
 
 export default function ValuatorProAdmin() {
   const { data: users = [] } = useAdminListUsersQuery();
   const { data: tasks = [] } = useAdminListTasksQuery();
-  const { data: allowedEmailGroups = [], refetch: refetchAllowedEmails } = useAdminListAllowedEmailsQuery();
-  const [adminAddAllowedEmail, { isLoading: addingAllowedEmail }] = useAdminAddAllowedEmailMutation();
+  const { data: allowedEmailGroups = [], refetch: refetchAllowedEmails } = useAdminListCreditLedgerQuery();
+  const [adminAddCreditEntry, { isLoading: addingAllowedEmail }] = useAdminAddCreditEntryMutation();
+  const [adminApproveUser, { isLoading: approvingUser }] = useAdminApproveUserMutation();
   const [msg, setMsg] = useState("");
   const [modalEmail, setModalEmail] = useState(null);
-  const modalGroup = allowedEmailGroups.find(g => g.email === modalEmail);
+  const modalGroup = modalEmail ? (allowedEmailGroups.find(g => g.email === modalEmail) || { email: modalEmail, balance: 0, entries: [] }) : null;
 
   const [allowedEmailInput, setAllowedEmailInput] = useState("");
   const [allowedEmailNote, setAllowedEmailNote] = useState("");
@@ -22,7 +23,7 @@ export default function ValuatorProAdmin() {
     if (!allowedEmailInput.trim()) return;
     setMsg("");
     try {
-      await adminAddAllowedEmail({ email: allowedEmailInput.trim(), note: allowedEmailNote.trim() || undefined, taskCredits: Number(allowedEmailCredits) || 0 }).unwrap();
+      await adminAddCreditEntry({ email: allowedEmailInput.trim(), note: allowedEmailNote.trim() || undefined, credits: Number(allowedEmailCredits) || 0 }).unwrap();
       setMsg(`${allowedEmailInput.trim()} için ${allowedEmailCredits} kredilik yeni satır eklendi.`);
       setAllowedEmailInput(""); setAllowedEmailNote(""); setAllowedEmailCredits(1);
     } catch (err) { setMsg(err.data || err.message || 'Eklenemedi.'); }
@@ -44,17 +45,26 @@ export default function ValuatorProAdmin() {
             </form>
           </Panel>
 
-          <Panel title={`Kayıtlı e-postalar (${allowedEmailGroups.length})`} sub="Her task kullanımı ayrı bir satır düşer — bakiye bunların toplamı. Dökümü görmek için satıra tıklayın." flush>
+          <Panel title={`Kullanıcılar (${users.length})`} sub="Satın alma yapabilmesi için kullanıcıyı onaylayın." flush>
             <div className="scroll"><table className="g">
-              <thead><tr className="hd solo"><th className="lbl">Email</th><th>Bakiye</th><th>Son işlem</th></tr></thead>
+              <thead><tr className="hd solo"><th className="lbl">Ad Soyad</th><th>Email</th><th>Onay</th><th></th><th>Kredi</th></tr></thead>
               <tbody>
-                {allowedEmailGroups.map(g => (
-                  <tr key={g.email} style={{ cursor: "pointer" }} onClick={() => { refetchAllowedEmails(); setModalEmail(g.email); }}>
-                    <td className="lbl">{g.email}</td>
-                    <td><span className={'tag' + (g.balance > 0 ? ' teal' : '')}>{g.balance}</span></td>
-                    <td>{new Date(g.lastActivity).toLocaleString('tr-TR')}</td>
-                  </tr>
-                ))}
+                {users.map(u => {
+                  const g = allowedEmailGroups.find(g => g.email === u.email);
+                  return (
+                    <tr key={u.id} style={{ cursor: "pointer" }} onClick={() => { refetchAllowedEmails(); setModalEmail(u.email); }}>
+                      <td className="lbl">{u.userName}</td>
+                      <td>{u.email}</td>
+                      <td><span className={'tag' + (u.isApproved ? ' teal' : '')}>{u.isApproved ? 'Onaylı' : 'Bekliyor'}</span></td>
+                      <td>
+                        {!u.isApproved && (
+                          <button className="btn" type="button" style={{ padding: "4px 10px", fontSize: 12 }} disabled={approvingUser} onClick={e => { e.stopPropagation(); adminApproveUser(u.id); }}>Onayla</button>
+                        )}
+                      </td>
+                      <td><span className={'tag' + (g?.balance > 0 ? ' teal' : '')}>{g?.balance ?? 0}</span></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table></div>
           </Panel>
@@ -69,7 +79,7 @@ export default function ValuatorProAdmin() {
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {modalGroup.entries.map(e => (
                     <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--line2)" }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: e.taskCredits < 0 ? "var(--red)" : "var(--green)", minWidth: 32 }}>{e.taskCredits > 0 ? `+${e.taskCredits}` : e.taskCredits}</span>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: e.credits < 0 ? "var(--red)" : "var(--green)", minWidth: 32 }}>{e.credits > 0 ? `+${e.credits}` : e.credits}</span>
                       <span style={{ flex: 1, color: "var(--muted)", fontSize: 12.5 }}>{e.note || "—"}</span>
                       <span style={{ fontSize: 11.5, color: "var(--faint)", whiteSpace: "nowrap" }}>{new Date(e.createdAt).toLocaleString('tr-TR')}</span>
                     </div>

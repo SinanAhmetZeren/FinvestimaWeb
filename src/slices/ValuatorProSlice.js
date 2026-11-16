@@ -163,6 +163,24 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       query: () => "/api/ValuatorPro/admin/users",
       providesTags: ["VPUser"],
     }),
+    adminApproveUser: builder.mutation({
+      query: (userId) => ({
+        url: `/api/ValuatorPro/admin/users/${userId}/approve`,
+        method: "PUT",
+      }),
+      invalidatesTags: ["VPUser"],
+    }),
+    getMyAccountStatus: builder.query({
+      query: () => "/api/ValuatorPro/me",
+      providesTags: ["VPMe"],
+    }),
+    startCreditPurchase: builder.mutation({
+      query: ({ credits, amountTl }) => ({
+        url: "/api/ValuatorPro/payments/start",
+        method: "POST",
+        body: { credits, amountTl },
+      }),
+    }),
     adminCreateTask: builder.mutation({
       query: ({ userId, companyName, taskTitle, accountingStandard }) => ({
         url: "/api/ValuatorPro/admin/valuation-tasks",
@@ -175,24 +193,24 @@ export const valuatorProApiSlice = apiSlice.injectEndpoints({
       query: () => "/api/ValuatorPro/admin/valuation-tasks",
       providesTags: ["VPTask"],
     }),
-    adminAddAllowedEmail: builder.mutation({
-      query: ({ email, note, taskCredits }) => ({
-        url: "/api/ValuatorPro/admin/allowed-emails",
+    adminAddCreditEntry: builder.mutation({
+      query: ({ email, note, credits }) => ({
+        url: "/api/ValuatorPro/admin/credit-ledger",
         method: "POST",
-        body: { email, note, taskCredits },
+        body: { email, note, credits },
       }),
-      invalidatesTags: ["VPAllowedEmail"],
+      invalidatesTags: ["VPCreditLedger"],
     }),
-    adminListAllowedEmails: builder.query({
-      query: () => "/api/ValuatorPro/admin/allowed-emails",
-      providesTags: ["VPAllowedEmail"],
+    adminListCreditLedger: builder.query({
+      query: () => "/api/ValuatorPro/admin/credit-ledger",
+      providesTags: ["VPCreditLedger"],
     }),
-    adminDeleteAllowedEmail: builder.mutation({
+    adminDeleteCreditEntry: builder.mutation({
       query: (id) => ({
-        url: `/api/ValuatorPro/admin/allowed-emails/${id}`,
+        url: `/api/ValuatorPro/admin/credit-ledger/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["VPAllowedEmail"],
+      invalidatesTags: ["VPCreditLedger"],
     }),
   }),
   overrideExisting: true,
@@ -224,9 +242,12 @@ export const {
   useGetMyValuationTasksQuery,
   useAdminCreateUserMutation,
   useAdminListUsersQuery,
+  useAdminApproveUserMutation,
+  useGetMyAccountStatusQuery,
+  useStartCreditPurchaseMutation,
   useAdminCreateTaskMutation,
   useAdminListTasksQuery,
-  useAdminAddAllowedEmailMutation,
-  useAdminListAllowedEmailsQuery,
-  useAdminDeleteAllowedEmailMutation,
+  useAdminAddCreditEntryMutation,
+  useAdminListCreditLedgerQuery,
+  useAdminDeleteCreditEntryMutation,
 } = valuatorProApiSlice;

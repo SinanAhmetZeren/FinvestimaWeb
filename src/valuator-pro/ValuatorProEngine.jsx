@@ -22,6 +22,7 @@ import * as StatementsEn from './layers/Statements_en.jsx';
 import * as Valuation from './layers/Valuation.jsx';
 import * as ValuationEn from './layers/Valuation_en.jsx';
 import Onboarding, { EMPLOYEES, REVENUE, PURPOSES, ROLES } from './auth/Onboarding.jsx';
+import PurchaseCredits from './auth/PurchaseCredits.jsx';
 import { SECTORS, findSub } from '../data/onboardingSectors.js';
 
 const LAYERS = [
@@ -311,8 +312,8 @@ export default function ValuatorProEngine(){
       <div className="main">
         <header className="top">
           <div className="case" style={{ marginLeft: 10 }}>
-            {layer!=='L0' && layer!=='A0' && <input className="cname" value={st.company} placeholder="Şirket adı" onChange={e=>up({company:e.target.value})} aria-label="Şirket adı" />}
-            {layer!=='L0' && layer!=='A0' && hist.length>0 && <span className="cmeta">{`${hist[0].year}–${hist[hist.length-1].year} tarihsel, USD '000`}</span>}
+            {layer!=='L0' && layer!=='A0' && layer!=='A1' && <input className="cname" value={st.company} placeholder="Şirket adı" onChange={e=>up({company:e.target.value})} aria-label="Şirket adı" />}
+            {layer!=='L0' && layer!=='A0' && layer!=='A1' && hist.length>0 && <span className="cmeta">{`${hist[0].year}–${hist[hist.length-1].year} tarihsel, USD '000`}</span>}
           </div>
           {V && <div className="headline">
             <div><span className="hl">Firma değeri</span><b>{mUsd(V.ev)}</b></div>
@@ -320,7 +321,7 @@ export default function ValuatorProEngine(){
             <div><span className="hl">Güven skoru</span><b className={audit.score>=7?'ok':audit.score>=4?'wn':'er'}>{audit.score.toFixed(1).replace('.',',')}</b></div>
             <div className="hide-sm"><span className="hl">WACC</span><b>{pc(V.P.w)}</b></div>
           </div>}
-          {layer!=='L0' && layer!=='A0' && st.valuationTaskId && (
+          {layer!=='L0' && layer!=='A0' && layer!=='A1' && st.valuationTaskId && (
             <button type="button" className="gearBtn" style={{ marginLeft: V ? 10 : 'auto', marginRight: 10, width: 30, height: 30 }} title="Firma profili" aria-label="Firma profili" onClick={openProfile}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
@@ -335,7 +336,8 @@ export default function ValuatorProEngine(){
         </div>
         */}
         <main className="work">
-          {layer==='A0' && <Onboarding onDone={() => setLayer('L0')} />}
+          {layer==='A0' && <PurchaseCredits />}
+          {layer==='A1' && <Onboarding onDone={() => setLayer('L0')} />}
           {layer==='L0' && <I.L0Tasks {...ctx} />}
           {layer==='L1' && <I.L1Inputs {...ctx} />}
           {layer==='L2' && <I.L2Mapping {...ctx} />}

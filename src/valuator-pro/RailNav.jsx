@@ -1,5 +1,6 @@
 const LAYERS = [
-  { k:'A0', n:'Yeni firma', m:'Task oluştur' },
+  { k:'A0', n:'Kredi satın al', m:'Sanal POS' },
+  { k:'A1', n:'Yeni firma', m:'Task oluştur' },
   { k:'L0', n:'İşler', m:'Değerleme seçimi' },
   { k:'L1', n:'Girdiler', m:'Dosya alımı, kurlar' },
   { k:'L2', n:'Mizan ve eşleme', m:'Hesap planı kontrolü' },
@@ -19,7 +20,7 @@ export default function RailNav({ layer, setLayer, done, taskSelected }){
       </div>
       <ol className="layers">
         {LAYERS.map(l => {
-          const locked = l.k !== 'L0' && l.k !== 'A0' && !taskSelected;
+          const locked = l.k !== 'L0' && l.k !== 'A0' && l.k !== 'A1' && !taskSelected;
           return (
           <li key={l.k}>
             <button className={'layer'+(done[l.k]?' ok':'')} aria-current={layer===l.k} disabled={locked} onClick={()=>!locked && setLayer(l.k)}>
